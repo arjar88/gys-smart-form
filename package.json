@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-phone-number-input": "^3.4.17"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.8",
