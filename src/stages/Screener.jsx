@@ -6,18 +6,13 @@ import { FormPhoneInput } from "../components/FormPhoneInput";
 import { FormSection } from "../components/FormSection";
 import { FormSelect } from "../components/FormSelect";
 import { SubmitButton } from "../components/SubmitButton";
-import {
-  PROPERTY_TYPE_OPTIONS,
-  TRANSACTION_TYPE_OPTIONS,
-} from "../constants/qualificationCriteria";
+import { PROPERTY_TYPE_OPTIONS } from "../constants/qualificationCriteria";
 
 const INITIAL = {
   property_address: "",
   property_type: "",
-  transaction_type: "",
   property_estimated_value: "",
   debt_on_property: "",
-  loan_amount_request: "",
   referral_partner_name: "",
   referral_partner_email: "",
   referral_partner_number: "",
@@ -108,15 +103,6 @@ export function Screener({ onPass, onFail }) {
             placeholder="Property Type"
             required
           />
-          <FormSelect
-            label="Transaction Type"
-            name="transaction_type"
-            value={form.transaction_type}
-            onChange={handleChange}
-            options={TRANSACTION_TYPE_OPTIONS}
-            placeholder="Transaction Type"
-            required
-          />
           <FormNumberField
             label="Estimated Property Value"
             name="property_estimated_value"
@@ -131,14 +117,6 @@ export function Screener({ onPass, onFail }) {
             value={form.debt_on_property}
             onChange={handleChange}
             placeholder="Current Debt on Property"
-            required
-          />
-          <FormNumberField
-            label="Desired Loan Amount"
-            name="loan_amount_request"
-            value={form.loan_amount_request}
-            onChange={handleChange}
-            placeholder="Desired Loan Amount"
             required
           />
         </FormSection>

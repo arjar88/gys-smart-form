@@ -10,7 +10,6 @@ import { SubmitButton } from "../components/SubmitButton";
 import {
   PROPERTY_TYPE_OPTIONS,
   RELATIONSHIP_OPTIONS,
-  TRANSACTION_TYPE_OPTIONS,
 } from "../constants/qualificationCriteria";
 import { formatNumericFields } from "../utils/numberFormat";
 
@@ -26,7 +25,6 @@ const STAGE2_FIELDS = {
   zip_code: "",
   debt_on_property: "",
   property_type: "",
-  transaction_type: "",
   business_name: "",
   borrower_name: "",
   borrower_email: "",
@@ -152,15 +150,6 @@ export function SubmissionForm({ initialData }) {
             onChange={handleChange}
             options={PROPERTY_TYPE_OPTIONS}
             placeholder="Property Type"
-            required
-          />
-          <FormSelect
-            label="Transaction Type"
-            name="transaction_type"
-            value={form.transaction_type}
-            onChange={handleChange}
-            options={TRANSACTION_TYPE_OPTIONS}
-            placeholder="Transaction Type"
             required
           />
           <FormNumberField

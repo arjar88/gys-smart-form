@@ -29,13 +29,10 @@ INPUTS
 You will receive:
 - Property Address
 - Property Type
-- Transaction Type
 - Property Value or Purchase Price
 - Current Debt (debt_on_property)
-- Desired Loan Amount (loan_amount_request)
 
 Property Types: Commercial, Mixed Use, Multifamily, Residential Investment, Primary Residence, Land, Other
-Transaction Types: Purchase, Cash-Out Refinance
 
 IMPORTANT RULES
 - Use the values submitted by the referral partner.
@@ -53,18 +50,16 @@ STEP 2 — PROPERTY TYPE REVIEW
 Pull the data that was submitted to determine property type.
 
 STEP 3 — RESIDENTIAL INVESTMENT REVIEW
-Cash-Out Refinance:
-  Available Equity = (Property Value × 75%) − Current Debt
-  If Available Equity > $100,000 → PASS
-  If Available Equity ≤ $100,000 → MANUAL_REVIEW (Reason: Limited available equity.)
-Purchase → PASS (Reason: Potential fit for residential investment financing.)
+Calculate Available Equity = (Property Value × 75%) − Current Debt
+If Available Equity > $100,000 → PASS
+If Available Equity ≤ $100,000 → MANUAL_REVIEW (Reason: Limited available equity.)
+If Current Debt is zero or unknown, assume it could be a purchase → PASS (Reason: Potential fit for residential investment financing.)
 
 STEP 4 — COMMERCIAL REVIEW
-Cash-Out Refinance:
-  Available Equity = (Property Value × 70%) − Current Debt
-  If Available Equity > $100,000 → PASS
-  If Available Equity ≤ $100,000 → MANUAL_REVIEW (Reason: Property may be fully leveraged under standard commercial guidelines and requires review.)
-Purchase → PASS (Reason: Potential fit for commercial financing.)
+Calculate Available Equity = (Property Value × 70%) − Current Debt
+If Available Equity > $100,000 → PASS
+If Available Equity ≤ $100,000 → MANUAL_REVIEW (Reason: Property may be fully leveraged under standard commercial guidelines and requires review.)
+If Current Debt is zero or unknown, assume it could be a purchase → PASS (Reason: Potential fit for commercial financing.)
 
 STEP 5 — SPECIAL ASSET REVIEW
 Automatically send to MANUAL_REVIEW: Hotels, Gas Stations, Churches, Schools, Assisted Living, Mobile Home Parks, Self Storage, Special Purpose Assets.
@@ -118,8 +113,8 @@ async function sendRejectionEmail(payload, aiResult) {
     : "GYS Mortgage — Quick Review Result";
 
   const bodyText = isManualReview
-    ? `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nYour submission requires a manual review before we can proceed. Our team will be in touch shortly to discuss next steps.\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nTransaction Type: ${payload.transaction_type || "N/A"}\nProperty Value: ${formatMoney(payload.property_estimated_value)}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`
-    : `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nUnfortunately, your submission did not pass our initial screening.\n\nReason: ${aiResult.reason || "This opportunity does not meet our current lending criteria."}\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nTransaction Type: ${payload.transaction_type || "N/A"}\nProperty Value: ${formatMoney(payload.property_estimated_value)}\n\nIf you would like to understand more about why your submission did not qualify, please reply to this email and we will be happy to explain.\n\nGYS Mortgage Team`;
+    ? `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nYour submission requires a manual review before we can proceed. Our team will be in touch shortly to discuss next steps.\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nProperty Value: ${formatMoney(payload.property_estimated_value)}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`
+    : `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nUnfortunately, your submission did not pass our initial screening.\n\nReason: ${aiResult.reason || "This opportunity does not meet our current lending criteria."}\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nProperty Value: ${formatMoney(payload.property_estimated_value)}\n\nIf you would like to understand more about why your submission did not qualify, please reply to this email and we will be happy to explain.\n\nGYS Mortgage Team`;
 
   const toAddresses = rpEmail ? [rpEmail] : [workerEmail];
 
@@ -152,10 +147,8 @@ export default async function handler(req, res) {
     const aiResult = await callOpenAI(QUICK_REVIEW_SYSTEM_PROMPT, {
       property_address: payload.property_address,
       property_type: payload.property_type,
-      transaction_type: payload.transaction_type,
       property_estimated_value: payload.property_estimated_value,
       debt_on_property: payload.debt_on_property,
-      loan_amount_request: payload.loan_amount_request,
     });
 
     if (aiResult.result === "PASS") {

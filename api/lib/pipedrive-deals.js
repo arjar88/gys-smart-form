@@ -118,7 +118,6 @@ Property Address: ${payload.property_address}
 Property Estimated Value: $${formatMoneyForNote(payload.property_estimated_value)}
 Debt on Property: $${formatMoneyForNote(payload.debt_on_property)}
 Property Type: ${payload.property_type}
-Transaction Type: ${payload.transaction_type || "N/A"}
 Loan Amount Requested: $${formatMoneyForNote(payload.loan_amount_request)}
 Zip Code: ${payload.zip_code || "N/A"}
 Relationship With Borrower: ${payload.relationship_with_borrower || "N/A"}

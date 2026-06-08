@@ -26,7 +26,6 @@ INPUTS
 You will receive:
 - Property Address
 - Property Type
-- Transaction Type
 - Property Value or Purchase Price
 - Current Debt (debt_on_property)
 - Desired Loan Amount (loan_amount_request)
@@ -34,7 +33,6 @@ You will receive:
 - Business Name
 
 Property Types: Commercial, Mixed Use, Residential Investment, Primary Residence, Land, Multifamily, Other
-Transaction Types: Purchase, Cash-Out Refinance
 
 IMPORTANT REVIEW RULES
 - Use submitted values for calculations.
@@ -62,18 +60,16 @@ Do NOT automatically decline: Hotels, Gas Stations, Churches, Schools, Assisted 
 Result: MANUAL_REVIEW (Reason: Special asset type requires review.)
 
 STEP 5 — RESIDENTIAL INVESTMENT REVIEW
-Cash-Out Refinance:
-  Available Equity = (Property Value × 75%) − Current Debt
-  If Available Equity > $100,000 → PASS
-  If Available Equity ≤ $100,000 → MANUAL_REVIEW (Reason: Limited available equity. Never decline for low equity.)
-Purchase → PASS (Reason: Potential fit. Residential investment purchases may qualify for financing up to approximately 85% LTV, subject to underwriting.)
+Calculate Available Equity = (Property Value × 75%) − Current Debt
+If Available Equity > $100,000 → PASS
+If Available Equity ≤ $100,000 → MANUAL_REVIEW (Reason: Limited available equity. Never decline for low equity.)
+If Current Debt is zero or not provided, assume it could be a purchase → PASS (Reason: Potential fit. Residential investment properties may qualify for financing up to approximately 85% LTV, subject to underwriting.)
 
 STEP 6 — COMMERCIAL REVIEW
-Cash-Out Refinance:
-  Available Equity = (Property Value × 70%) − Current Debt
-  If Available Equity > $100,000 → PASS
-  If Available Equity ≤ $100,000 → MANUAL_REVIEW (Reason: Property may be fully leveraged under conventional commercial guidelines but could still qualify under SBA or alternative lending programs. Never decline for low equity.)
-Purchase → PASS (Reason: Potential fit. Commercial purchases may qualify for financing between 70% and 85% LTV depending on program.)
+Calculate Available Equity = (Property Value × 70%) − Current Debt
+If Available Equity > $100,000 → PASS
+If Available Equity ≤ $100,000 → MANUAL_REVIEW (Reason: Property may be fully leveraged under conventional commercial guidelines but could still qualify under SBA or alternative lending programs. Never decline for low equity.)
+If Current Debt is zero or not provided, assume it could be a purchase → PASS (Reason: Potential fit. Commercial properties may qualify for financing between 70% and 85% LTV depending on program.)
 
 STEP 7 — LOAN AMOUNT SANITY CHECK
 If requested loan amount appears materially larger than the available collateral supports → PASS but note this in flags.
@@ -134,7 +130,6 @@ Business: ${payload.business_name || "N/A"}
 
 Property: ${payload.property_address || "N/A"}
 Property Type: ${payload.property_type || "N/A"}
-Transaction Type: ${payload.transaction_type || "N/A"}
 Property Value: ${formatMoney(payload.property_estimated_value)}
 Debt on Property: ${formatMoney(payload.debt_on_property)}
 Loan Amount Requested: ${formatMoney(payload.loan_amount_request)}
@@ -166,8 +161,8 @@ async function sendWorkerReviewEmail(payload, aiResult) {
 
   const bodyText =
     aiResult.result === "DECLINE"
-      ? `Hi ${rpName},\n\nThank you for your submission to GYS Mortgage.\n\nAfter review, we are unable to move forward with this deal at this time.\n\nReason: ${aiResult.reason || "This opportunity does not meet our current lending criteria."}\n\nProperty: ${payload.property_address || "N/A"}\nBorrower: ${payload.borrower_name || "N/A"}\n\nIf you would like to understand more about why this submission did not qualify, please reply to this email.\n\nGYS Mortgage Team`
-      : `Hi ${rpName},\n\nThank you for your submission to GYS Mortgage.\n\nYour deal requires a manual review by our team. We will be in touch shortly to discuss next steps.\n\nProperty: ${payload.property_address || "N/A"}\nBorrower: ${payload.borrower_name || "N/A"}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`;
+      ? `Hi ${rpName},\n\nThank you for your submission to GYS Mortgage.\n\nAfter review, we are unable to move forward with this deal at this time.\n\nReason: ${aiResult.reason || "This opportunity does not meet our current lending criteria."}\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nBorrower: ${payload.borrower_name || "N/A"}\n\nIf you would like to understand more about why this submission did not qualify, please reply to this email.\n\nGYS Mortgage Team`
+      : `Hi ${rpName},\n\nThank you for your submission to GYS Mortgage.\n\nYour deal requires a manual review by our team. We will be in touch shortly to discuss next steps.\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nBorrower: ${payload.borrower_name || "N/A"}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`;
 
   const toAddresses = rpEmail ? [rpEmail] : ["gabriel@gysmortgage.com"];
 
@@ -203,7 +198,6 @@ export default async function handler(req, res) {
     const aiResult = await callOpenAI(FULL_SUBMISSION_SYSTEM_PROMPT, {
       property_address: payload.property_address,
       property_type: payload.property_type,
-      transaction_type: payload.transaction_type,
       property_estimated_value: payload.property_estimated_value,
       debt_on_property: payload.debt_on_property,
       loan_amount_request: payload.loan_amount_request,
