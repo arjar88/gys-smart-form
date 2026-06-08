@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { submitDeal } from "../api/wix";
 import { FormContainer } from "../components/FormContainer";
 import { FormField } from "../components/FormField";
 import { FormNumberField } from "../components/FormNumberField";
@@ -11,6 +10,7 @@ import { SubmitButton } from "../components/SubmitButton";
 import {
   PROPERTY_TYPE_OPTIONS,
   RELATIONSHIP_OPTIONS,
+  TRANSACTION_TYPE_OPTIONS,
 } from "../constants/qualificationCriteria";
 import { formatNumericFields } from "../utils/numberFormat";
 
@@ -26,6 +26,7 @@ const STAGE2_FIELDS = {
   zip_code: "",
   debt_on_property: "",
   property_type: "",
+  transaction_type: "",
   business_name: "",
   borrower_name: "",
   borrower_email: "",
@@ -37,9 +38,9 @@ export function SubmissionForm({ initialData }) {
   const [form, setForm] = useState(
     formatNumericFields({ ...STAGE2_FIELDS, ...initialData })
   );
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -52,14 +53,14 @@ export function SubmissionForm({ initialData }) {
     setLoading(true);
     setError("");
 
-    try {
-      await submitDeal(form);
-      setSubmitted(true);
-    } catch (err) {
-      setError(err.message || "Submission failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    // Immediately show the thank you screen — fire and forget the backend call.
+    setSubmitted(true);
+
+    fetch("/api/full-submission", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    }).catch((err) => console.error("Submission error:", err));
   }
 
   if (submitted) {
@@ -100,11 +101,11 @@ export function SubmissionForm({ initialData }) {
             required
           />
           <FormField
-            label="Company name"
+            label="Company Name"
             name="referral_partner_company"
             value={form.referral_partner_company}
             onChange={handleChange}
-            placeholder="Company name"
+            placeholder="Company Name"
             required
           />
           <FormPhoneInput
@@ -125,31 +126,41 @@ export function SubmissionForm({ initialData }) {
             required
           />
           <FormSelect
-            label="Relationship with borrower field"
+            label="Relationship with Borrower"
             name="relationship_with_borrower"
             value={form.relationship_with_borrower}
             onChange={handleChange}
             options={RELATIONSHIP_OPTIONS}
-            placeholder="Relationship with borrower field"
+            placeholder="Relationship with Borrower"
             required
           />
         </FormSection>
 
-        <FormSection title="Borrower Info">
-          <FormNumberField
-            label="Loan Amount Request"
-            name="loan_amount_request"
-            value={form.loan_amount_request}
-            onChange={handleChange}
-            placeholder="Loan Amount Request"
-            required
-          />
+        <FormSection title="Property Info">
           <FormField
             label="Property Address"
             name="property_address"
             value={form.property_address}
             onChange={handleChange}
             placeholder="Property Address"
+            required
+          />
+          <FormSelect
+            label="Property Type"
+            name="property_type"
+            value={form.property_type}
+            onChange={handleChange}
+            options={PROPERTY_TYPE_OPTIONS}
+            placeholder="Property Type"
+            required
+          />
+          <FormSelect
+            label="Transaction Type"
+            name="transaction_type"
+            value={form.transaction_type}
+            onChange={handleChange}
+            options={TRANSACTION_TYPE_OPTIONS}
+            placeholder="Transaction Type"
             required
           />
           <FormNumberField
@@ -169,22 +180,24 @@ export function SubmissionForm({ initialData }) {
             required
           />
           <FormNumberField
-            label="Debt on the property"
+            label="Debt on the Property"
             name="debt_on_property"
             value={form.debt_on_property}
             onChange={handleChange}
-            placeholder="Debt on the property"
+            placeholder="Debt on the Property"
             required
           />
-          <FormSelect
-            label="Property Type"
-            name="property_type"
-            value={form.property_type}
+          <FormNumberField
+            label="Loan Amount Requested"
+            name="loan_amount_request"
+            value={form.loan_amount_request}
             onChange={handleChange}
-            options={PROPERTY_TYPE_OPTIONS}
-            placeholder="Property Type"
+            placeholder="Loan Amount Requested"
             required
           />
+        </FormSection>
+
+        <FormSection title="Borrower Info">
           <FormField
             label="Business Name"
             name="business_name"
@@ -211,19 +224,19 @@ export function SubmissionForm({ initialData }) {
             required
           />
           <FormPhoneInput
-            label="Borrower phone number"
+            label="Borrower Phone Number"
             name="borrower_phone"
             value={form.borrower_phone}
             onChange={handleChange}
-            placeholder="Borrower phone number"
+            placeholder="Borrower Phone Number"
             required
           />
           <FormTextarea
-            label="Include details..."
+            label="Additional Notes"
             name="notes"
             value={form.notes}
             onChange={handleChange}
-            placeholder="Include details..."
+            placeholder="Include any additional details..."
           />
         </FormSection>
       </form>

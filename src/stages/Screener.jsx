@@ -1,15 +1,26 @@
 import { useState } from "react";
-import { screenDeal } from "../api/openai";
 import { FormContainer } from "../components/FormContainer";
+import { FormField } from "../components/FormField";
 import { FormNumberField } from "../components/FormNumberField";
+import { FormPhoneInput } from "../components/FormPhoneInput";
+import { FormSection } from "../components/FormSection";
 import { FormSelect } from "../components/FormSelect";
 import { SubmitButton } from "../components/SubmitButton";
-import { PROPERTY_TYPE_OPTIONS } from "../constants/qualificationCriteria";
+import {
+  PROPERTY_TYPE_OPTIONS,
+  TRANSACTION_TYPE_OPTIONS,
+} from "../constants/qualificationCriteria";
 
 const INITIAL = {
+  property_address: "",
   property_type: "",
+  transaction_type: "",
   property_estimated_value: "",
+  debt_on_property: "",
   loan_amount_request: "",
+  referral_partner_name: "",
+  referral_partner_email: "",
+  referral_partner_number: "",
 };
 
 export function Screener({ onPass, onFail }) {
@@ -29,12 +40,26 @@ export function Screener({ onPass, onFail }) {
     setError("");
 
     try {
-      const result = await screenDeal(form);
+      const response = await fetch("/api/quick-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-      if (result.qualified) {
-        onPass(form, result.reason);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Something went wrong. Please try again.");
+      }
+
+      if (result.result === "PASS") {
+        onPass(form);
       } else {
-        onFail(form, result.reason);
+        onFail(
+          form,
+          result.reason ||
+            "Your submission did not meet our initial lending criteria."
+        );
       }
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
@@ -45,7 +70,7 @@ export function Screener({ onPass, onFail }) {
 
   return (
     <FormContainer
-      title="Quick Deal Screening"
+      title="Quick Deal Review"
       footer={
         <div className="mt-8 flex flex-col items-end gap-3">
           {error && (
@@ -54,44 +79,97 @@ export function Screener({ onPass, onFail }) {
             </p>
           )}
           <SubmitButton form="screener-form" loading={loading}>
-            Continue
+            Check My Deal
           </SubmitButton>
         </div>
       }
     >
       <p className="mb-8 text-[15px] leading-relaxed text-gys-label/80">
-        Tell us a few details about your deal and we&apos;ll let you know if it
-        fits our lending criteria before you complete the full submission.
+        Enter your property details and we&apos;ll instantly check if your deal
+        fits our lending criteria — before you gather any borrower information.
       </p>
 
-      <form id="screener-form" onSubmit={handleSubmit} className="space-y-5">
-        <FormSelect
-          label="Property Type"
-          name="property_type"
-          value={form.property_type}
-          onChange={handleChange}
-          options={PROPERTY_TYPE_OPTIONS}
-          placeholder="Property Type"
-          required
-        />
+      <form id="screener-form" onSubmit={handleSubmit} className="space-y-2">
+        <FormSection title="Property Details">
+          <FormField
+            label="Property Address"
+            name="property_address"
+            value={form.property_address}
+            onChange={handleChange}
+            placeholder="Property Address"
+            required
+          />
+          <FormSelect
+            label="Property Type"
+            name="property_type"
+            value={form.property_type}
+            onChange={handleChange}
+            options={PROPERTY_TYPE_OPTIONS}
+            placeholder="Property Type"
+            required
+          />
+          <FormSelect
+            label="Transaction Type"
+            name="transaction_type"
+            value={form.transaction_type}
+            onChange={handleChange}
+            options={TRANSACTION_TYPE_OPTIONS}
+            placeholder="Transaction Type"
+            required
+          />
+          <FormNumberField
+            label="Estimated Property Value"
+            name="property_estimated_value"
+            value={form.property_estimated_value}
+            onChange={handleChange}
+            placeholder="Estimated Property Value"
+            required
+          />
+          <FormNumberField
+            label="Current Debt on Property"
+            name="debt_on_property"
+            value={form.debt_on_property}
+            onChange={handleChange}
+            placeholder="Current Debt on Property"
+            required
+          />
+          <FormNumberField
+            label="Desired Loan Amount"
+            name="loan_amount_request"
+            value={form.loan_amount_request}
+            onChange={handleChange}
+            placeholder="Desired Loan Amount"
+            required
+          />
+        </FormSection>
 
-        <FormNumberField
-          label="Estimated Property Value"
-          name="property_estimated_value"
-          value={form.property_estimated_value}
-          onChange={handleChange}
-          placeholder="Estimated Property Value"
-          required
-        />
-
-        <FormNumberField
-          label="Loan Amount Requested"
-          name="loan_amount_request"
-          value={form.loan_amount_request}
-          onChange={handleChange}
-          placeholder="Loan Amount Requested"
-          required
-        />
+        <FormSection title="Referral Partner Info">
+          <FormField
+            label="Your Name"
+            name="referral_partner_name"
+            value={form.referral_partner_name}
+            onChange={handleChange}
+            placeholder="Your Name"
+            required
+          />
+          <FormField
+            label="Your Email"
+            name="referral_partner_email"
+            type="email"
+            value={form.referral_partner_email}
+            onChange={handleChange}
+            placeholder="Your Email"
+            required
+          />
+          <FormPhoneInput
+            label="Your Phone Number"
+            name="referral_partner_number"
+            value={form.referral_partner_number}
+            onChange={handleChange}
+            placeholder="Your Phone Number"
+            required
+          />
+        </FormSection>
       </form>
     </FormContainer>
   );

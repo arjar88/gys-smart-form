@@ -1,10 +1,11 @@
 import { useCallback, useState } from "react";
+import { LandingView } from "./stages/LandingView";
 import { RejectionView } from "./stages/RejectionView";
 import { Screener } from "./stages/Screener";
 import { SubmissionForm } from "./stages/SubmissionForm";
 
 export default function App() {
-  const [stage, setStage] = useState("screener");
+  const [stage, setStage] = useState("landing");
   const [formData, setFormData] = useState({});
   const [rejectionReason, setRejectionReason] = useState("");
 
@@ -22,6 +23,15 @@ export default function App() {
     setRejectionReason("");
     setStage("screener");
   }, []);
+
+  if (stage === "landing") {
+    return (
+      <LandingView
+        onQuickReview={() => setStage("screener")}
+        onFullSubmission={() => setStage("form")}
+      />
+    );
+  }
 
   if (stage === "form") {
     return <SubmissionForm initialData={formData} />;
