@@ -1,6 +1,7 @@
 import { findOrCreateBorrower, findOrCreateRP } from "./pipedrive-persons.js";
 import {
   createDeal,
+  setCalendlyUid,
   addReferralPartnerToDeal,
   addDealNote,
 } from "./pipedrive-deals.js";
@@ -48,8 +49,11 @@ export async function submitToPipedrive(payload, aiSummary) {
     apiToken
   );
 
-  log.info("Adding deal participant and note in parallel", { dealId });
+  log.info("Setting Calendly UID and adding deal participant and note in parallel", {
+    dealId,
+  });
   await Promise.all([
+    setCalendlyUid(dealId, apiToken),
     addReferralPartnerToDeal(dealId, rpId, apiToken),
     addDealNote(payload, dealId, aiSummary, apiToken),
   ]);

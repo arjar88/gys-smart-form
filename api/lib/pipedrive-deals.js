@@ -3,6 +3,9 @@ import { createLogger } from "./logger.js";
 
 const log = createLogger("pipedrive-deals");
 const COMPANY_DOMAIN = "gysmortgage";
+const ORIGINATION_PIPELINE_ID = 10;
+const SCHEDULING_A_CALL_STAGE_ID = 56;
+const CALENDLY_UID_FIELD_KEY = "9a5dcb6b0add9b7fdb75fd88c4bc2c0e7cadc5d8";
 
 function getPropertyTypeId(label) {
   const map = {
@@ -45,8 +48,8 @@ export async function createDeal(payload, borrowerId, organizationId, rpId, apiT
     title: payload.business_name,
     person_id: borrowerId,
     org_id: organizationId,
-    pipeline_id: 10,
-    stage_id: 54,
+    pipeline_id: ORIGINATION_PIPELINE_ID,
+    stage_id: SCHEDULING_A_CALL_STAGE_ID,
     status: "open",
     d903d5c1eb13f0b080d804d8da57d4cef97f5720: rpId,
     "16579d25bd4835bcd26420525830ab4d36632c8a": payload.property_address,
@@ -89,6 +92,24 @@ export async function createDeal(payload, borrowerId, organizationId, rpId, apiT
 
   log.info("Deal created", { dealId: data.data.id, title: data.data.title });
   return data.data.id;
+}
+
+export async function setCalendlyUid(dealId, apiToken) {
+  const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/deals/${dealId}?api_token=${apiToken}`;
+
+  log.info("Setting Calendly UID", { dealId, calendlyUid: dealId });
+
+  const { ok } = await pipedriveRequest("setCalendlyUid", url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ [CALENDLY_UID_FIELD_KEY]: String(dealId) }),
+  });
+
+  if (!ok) {
+    throw new Error("Failed to set Calendly UID on deal");
+  }
+
+  log.info("Calendly UID set", { dealId });
 }
 
 export async function addReferralPartnerToDeal(dealId, rpId, apiToken) {

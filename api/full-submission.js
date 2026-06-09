@@ -1,6 +1,12 @@
 import { waitUntil } from "@vercel/functions";
 import { callOpenAI } from "./lib/openai.js";
-import { FROM_EMAIL, WORKER_EMAIL, sendEmail } from "./lib/email.js";
+import {
+  FROM_EMAIL,
+  WORKER_EMAIL,
+  formatAiReviewDetails,
+  formatPropertyDetails,
+  sendEmail,
+} from "./lib/email.js";
 import { submitToPipedrive } from "./lib/pipedrive.js";
 import { createLogger } from "./lib/logger.js";
 
@@ -105,6 +111,8 @@ Rules: PASS = discovery_call_recommendation: true, MANUAL_REVIEW = discovery_cal
 async function sendWorkerReviewEmail(payload, aiResult) {
   const rpEmail = payload.referral_partner_email;
   const rpName = payload.referral_partner_name || "there";
+  const propertyDetails = formatPropertyDetails(payload);
+  const aiReviewDetails = formatAiReviewDetails(aiResult);
 
   const subject =
     aiResult.result === "DECLINE"
@@ -113,8 +121,8 @@ async function sendWorkerReviewEmail(payload, aiResult) {
 
   const bodyText =
     aiResult.result === "DECLINE"
-      ? `Hi ${rpName},\n\nThank you for your submission to GYS Mortgage.\n\nAfter review, we are unable to move forward with this deal at this time.\n\nReason: ${aiResult.reason || "This opportunity does not meet our current lending criteria."}\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nBorrower: ${payload.borrower_name || "N/A"}\n\nIf you would like to understand more about why this submission did not qualify, please reply to this email.\n\nGYS Mortgage Team`
-      : `Hi ${rpName},\n\nThank you for your submission to GYS Mortgage.\n\nYour deal requires a manual review by our team. We will be in touch shortly to discuss next steps.\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nBorrower: ${payload.borrower_name || "N/A"}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`;
+      ? `Hi ${rpName},\n\nThank you for your submission to GYS Mortgage.\n\nAfter review, we are unable to move forward with this deal at this time.\n\n--- AI Review ---\n${aiReviewDetails}\n\n${propertyDetails}\nBorrower: ${payload.borrower_name || "N/A"}\n\nIf you would like to understand more about why this submission did not qualify, please reply to this email.\n\nGYS Mortgage Team`
+      : `Hi ${rpName},\n\nThank you for your submission to GYS Mortgage.\n\nYour deal requires a manual review by our team. We will be in touch shortly to discuss next steps.\n\n--- AI Review ---\n${aiReviewDetails}\n\n${propertyDetails}\nBorrower: ${payload.borrower_name || "N/A"}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`;
 
   const toAddresses = rpEmail ? [rpEmail] : [WORKER_EMAIL];
   const ccAddresses = rpEmail ? [WORKER_EMAIL] : [];
