@@ -37,6 +37,43 @@ npm run dev
 
 Edit [`src/constants/qualificationCriteria.js`](src/constants/qualificationCriteria.js) to adjust min/max values, LTV ratio, or rejected property types.
 
+## Automated testing
+
+Run the backend test suite:
+
+```bash
+npm test
+```
+
+For watch mode during development:
+
+```bash
+npm run test:watch
+```
+
+### What the tests cover
+
+The tests verify **orchestration logic** — that the right process runs for each AI outcome — without calling OpenAI, Pipedrive, or Resend live.
+
+| AI result | Quick review (`/api/quick-review`) | Full submission (`/api/full-submission`) |
+|-----------|----------------------------------|------------------------------------------|
+| `PASS` | Returns success, no email | Submits to Pipedrive, no email |
+| `MANUAL_REVIEW` | Sends review email to RP | Sends review email to RP |
+| `DECLINE` | Sends decline email to RP | Sends decline email to RP |
+
+Additional coverage:
+
+- Email formatters produce correct property and AI review blocks
+- Pipedrive submission orchestrates person lookup, deal creation, Calendly UID, participant, and note
+
+### What the tests do not cover
+
+- Live OpenAI decision quality (non-deterministic; prompts and models change)
+- Real Pipedrive or Resend API behavior
+- Frontend UI and iframe integration
+
+Use the manual E2E checklist below for those.
+
 ## E2E test checklist (live site)
 
 - [ ] Stage 1 loads in iframe
