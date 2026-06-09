@@ -97,9 +97,17 @@ function formatMoney(value) {
   return `$${n.toLocaleString("en-US")}`;
 }
 
+function formatPropertyDetails(payload) {
+  return `Address: ${payload.property_address || "N/A"}
+Value: ${formatMoney(payload.property_estimated_value)}
+Debt: ${formatMoney(payload.debt_on_property)}
+Property Type: ${payload.property_type || "N/A"}`;
+}
+
 async function sendRejectionEmail(payload, aiResult) {
   const rpEmail = payload.referral_partner_email;
   const rpName = payload.referral_partner_name || "there";
+  const propertyDetails = formatPropertyDetails(payload);
 
   const isManualReview = aiResult.result === "MANUAL_REVIEW";
   const subject = isManualReview
@@ -107,8 +115,8 @@ async function sendRejectionEmail(payload, aiResult) {
     : "GYS Mortgage — Quick Review Result";
 
   const bodyText = isManualReview
-    ? `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nYour submission requires a manual review before we can proceed. Our team will be in touch shortly to discuss next steps.\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nProperty Value: ${formatMoney(payload.property_estimated_value)}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`
-    : `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nUnfortunately, your submission did not pass our initial screening.\n\nReason: ${aiResult.reason || "This opportunity does not meet our current lending criteria."}\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nProperty Value: ${formatMoney(payload.property_estimated_value)}\n\nIf you would like to understand more about why your submission did not qualify, please reply to this email and we will be happy to explain.\n\nGYS Mortgage Team`;
+    ? `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nYour submission requires a manual review before we can proceed. Our team will be in touch shortly to discuss next steps.\n\n${propertyDetails}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`
+    : `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nUnfortunately, your submission did not pass our initial screening.\n\nReason: ${aiResult.reason || "This opportunity does not meet our current lending criteria."}\n\n${propertyDetails}\n\nIf you would like to understand more about why your submission did not qualify, please reply to this email and we will be happy to explain.\n\nGYS Mortgage Team`;
 
   const toAddresses = rpEmail ? [rpEmail] : [WORKER_EMAIL];
   const ccAddresses = rpEmail ? [WORKER_EMAIL] : [];
