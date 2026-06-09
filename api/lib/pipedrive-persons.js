@@ -1,5 +1,8 @@
 import { findOrCreateOrganization } from "./pipedrive-organizations.js";
+import { pipedriveRequest } from "./pipedrive-request.js";
+import { createLogger } from "./logger.js";
 
+const log = createLogger("pipedrive-persons");
 const COMPANY_DOMAIN = "gysmortgage";
 
 function normalizePhone(phone) {
@@ -43,17 +46,19 @@ async function searchPersonByPhone(phone, apiToken) {
     `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/persons/search` +
     `?term=${encodeURIComponent(normalized)}&fields=phone&exact_match=false&api_token=${apiToken}`;
 
-  const res = await fetch(url);
-  const data = await res.json();
-  const items = (data && data.data && data.data.items) || [];
+  const { ok, data } = await pipedriveRequest("searchPersonByPhone", url);
+  if (!ok) return null;
 
+  const items = (data && data.data && data.data.items) || [];
   const hit = items.find((i) =>
     (i.item.phones || []).some(
       (p) => normalizePhone(extractPhoneValue(p)) === normalized
     )
   );
+
   if (!hit) return null;
 
+  log.info("Found person by phone", { personId: hit.item.id });
   return {
     personId: hit.item.id,
     orgId: hit.item.organization ? hit.item.organization.id : null,
@@ -70,17 +75,19 @@ async function searchPersonByEmail(email, apiToken) {
     `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/persons/search` +
     `?term=${encodeURIComponent(normalized)}&fields=email&exact_match=false&api_token=${apiToken}`;
 
-  const res = await fetch(url);
-  const data = await res.json();
-  const items = (data && data.data && data.data.items) || [];
+  const { ok, data } = await pipedriveRequest("searchPersonByEmail", url);
+  if (!ok) return null;
 
+  const items = (data && data.data && data.data.items) || [];
   const hit = items.find((i) =>
     (i.item.emails || []).some(
       (e) => normalizeEmail(extractEmailValue(e)) === normalized
     )
   );
+
   if (!hit) return null;
 
+  log.info("Found person by email", { personId: hit.item.id });
   return {
     personId: hit.item.id,
     orgId: hit.item.organization ? hit.item.organization.id : null,
@@ -128,19 +135,19 @@ async function createPerson(name, phone, email, orgId, contactType, apiToken) {
     }
   }
 
-  const res = await fetch(url, {
+  log.info("Creating person", { name, contactType, orgId });
+
+  const { ok, data } = await pipedriveRequest("createPerson", url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
-  const data = await res.json();
-
-  if (!data.success || !data.data) {
-    console.error("Create person failed:", data);
+  if (!ok || !data?.data) {
     throw new Error("Failed to create person in Pipedrive");
   }
 
+  log.info("Created person", { personId: data.data.id, name: data.data.name });
   return data.data.id;
 }
 
@@ -181,7 +188,10 @@ async function updatePersonContactInfo(
     }
   }
 
-  if (!phonesChanged && !emailsChanged) return;
+  if (!phonesChanged && !emailsChanged) {
+    log.info("Person contact info unchanged", { personId });
+    return;
+  }
 
   const body = {};
   if (phonesChanged) body.phones = updatedPhones;
@@ -189,11 +199,13 @@ async function updatePersonContactInfo(
 
   const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v2/persons/${personId}?api_token=${apiToken}`;
 
-  await fetch(url, {
+  await pipedriveRequest("updatePersonContactInfo", url, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+
+  log.info("Updated person contact info", { personId });
 }
 
 export async function findOrCreateBorrower(
@@ -203,9 +215,12 @@ export async function findOrCreateBorrower(
   businessName,
   apiToken
 ) {
+  log.info("Finding or creating borrower", { name, email, businessName });
+
   const existing = await findExistingPerson(phone, email, apiToken);
 
   if (existing) {
+    log.info("Using existing borrower", { personId: existing.personId });
     await updatePersonContactInfo(
       existing.personId,
       existing.phones,
@@ -239,8 +254,11 @@ export async function findOrCreateRP(
   companyName,
   apiToken
 ) {
+  log.info("Finding or creating referral partner", { name, email, companyName });
+
   const existing = await findExistingPerson(phone, email, apiToken);
   if (existing) {
+    log.info("Using existing referral partner", { personId: existing.personId });
     await updatePersonContactInfo(
       existing.personId,
       existing.phones,

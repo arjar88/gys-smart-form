@@ -1,6 +1,10 @@
-import { Resend } from "resend";
+import { waitUntil } from "@vercel/functions";
 import { callOpenAI } from "./lib/openai.js";
+import { FROM_EMAIL, WORKER_EMAIL, sendEmail } from "./lib/email.js";
 import { submitToPipedrive } from "./lib/pipedrive.js";
+import { createLogger } from "./lib/logger.js";
+
+const log = createLogger("full-submission");
 
 const FULL_SUBMISSION_SYSTEM_PROMPT = `You are the first-pass deal screener for GYS Mortgage.
 Your purpose is NOT to determine whether a deal will be approved.
@@ -98,59 +102,7 @@ Return JSON only:
 }
 Rules: PASS = discovery_call_recommendation: true, MANUAL_REVIEW = discovery_call_recommendation: false, DECLINE = discovery_call_recommendation: false`;
 
-function formatMoney(value) {
-  const n = Number(String(value || "").replace(/,/g, ""));
-  if (Number.isNaN(n)) return String(value || "N/A");
-  return `$${n.toLocaleString("en-US")}`;
-}
-
-async function sendWorkerPassEmail(payload, aiResult, dealId) {
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) {
-    console.error("RESEND_API_KEY not configured — skipping email.");
-    return;
-  }
-
-  const resend = new Resend(resendKey);
-
-  await resend.emails.send({
-    from: "GYS Mortgage <noreply@gysmortgage.com>",
-    to: ["gabriel@gysmortgage.com"],
-    subject: `New Deal Submitted — ${payload.business_name || payload.borrower_name}`,
-    text: `A new deal has been submitted and passed the AI review.
-
-Referral Partner: ${payload.referral_partner_name || "N/A"}
-RP Email: ${payload.referral_partner_email || "N/A"}
-RP Phone: ${payload.referral_partner_number || "N/A"}
-
-Borrower: ${payload.borrower_name || "N/A"}
-Borrower Email: ${payload.borrower_email || "N/A"}
-Borrower Phone: ${payload.borrower_phone || "N/A"}
-Business: ${payload.business_name || "N/A"}
-
-Property: ${payload.property_address || "N/A"}
-Property Type: ${payload.property_type || "N/A"}
-Property Value: ${formatMoney(payload.property_estimated_value)}
-Debt on Property: ${formatMoney(payload.debt_on_property)}
-Loan Amount Requested: ${formatMoney(payload.loan_amount_request)}
-
-AI Summary: ${aiResult.summary || "N/A"}
-AI Confidence: ${aiResult.confidence || "N/A"}%
-${aiResult.flags && aiResult.flags.length ? `\nFlags:\n${aiResult.flags.join("\n")}` : ""}
-
-Pipedrive Deal ID: ${dealId || "N/A"}`,
-  });
-}
-
 async function sendWorkerReviewEmail(payload, aiResult) {
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) {
-    console.error("RESEND_API_KEY not configured — skipping email.");
-    return;
-  }
-
-  const resend = new Resend(resendKey);
-
   const rpEmail = payload.referral_partner_email;
   const rpName = payload.referral_partner_name || "there";
 
@@ -164,15 +116,63 @@ async function sendWorkerReviewEmail(payload, aiResult) {
       ? `Hi ${rpName},\n\nThank you for your submission to GYS Mortgage.\n\nAfter review, we are unable to move forward with this deal at this time.\n\nReason: ${aiResult.reason || "This opportunity does not meet our current lending criteria."}\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nBorrower: ${payload.borrower_name || "N/A"}\n\nIf you would like to understand more about why this submission did not qualify, please reply to this email.\n\nGYS Mortgage Team`
       : `Hi ${rpName},\n\nThank you for your submission to GYS Mortgage.\n\nYour deal requires a manual review by our team. We will be in touch shortly to discuss next steps.\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nBorrower: ${payload.borrower_name || "N/A"}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`;
 
-  const toAddresses = rpEmail ? [rpEmail] : ["gabriel@gysmortgage.com"];
+  const toAddresses = rpEmail ? [rpEmail] : [WORKER_EMAIL];
+  const ccAddresses = rpEmail ? [WORKER_EMAIL] : [];
 
-  await resend.emails.send({
-    from: "GYS Mortgage <noreply@gysmortgage.com>",
+  await sendEmail({
+    from: FROM_EMAIL,
     to: toAddresses,
-    cc: rpEmail ? ["gabriel@gysmortgage.com"] : [],
+    cc: ccAddresses,
     subject,
     text: bodyText,
   });
+}
+
+async function processFullSubmission(payload) {
+  try {
+    log.info("Background processing started");
+    log.info("Calling OpenAI for full submission review");
+    const aiResult = await callOpenAI(FULL_SUBMISSION_SYSTEM_PROMPT, {
+      property_address: payload.property_address,
+      property_type: payload.property_type,
+      property_estimated_value: payload.property_estimated_value,
+      debt_on_property: payload.debt_on_property,
+      loan_amount_request: payload.loan_amount_request,
+      borrower_name: payload.borrower_name,
+      business_name: payload.business_name,
+    });
+
+    log.info("AI review complete", {
+      result: aiResult.result,
+      confidence: aiResult.confidence,
+      reason: aiResult.reason,
+      summary: aiResult.summary,
+      discoveryCall: aiResult.discovery_call_recommendation,
+      propertyTypeConfirmed: aiResult.property_type_confirmed,
+      populationFound: aiResult.population_found,
+      availableEquity: aiResult.available_equity,
+      flags: aiResult.flags,
+    });
+
+    if (aiResult.result === "PASS") {
+      log.info("PASS — sending to Pipedrive (no Resend email on pass)");
+      const pipedriveResult = await submitToPipedrive(payload, aiResult.summary);
+      log.info("Background processing complete", {
+        action: "pipedrive",
+        dealId: pipedriveResult.dealId,
+      });
+    } else {
+      log.info("Not PASS — sending review email via Resend", {
+        result: aiResult.result,
+      });
+      await sendWorkerReviewEmail(payload, aiResult);
+      log.info("Background processing complete", { action: "resend" });
+    }
+  } catch (err) {
+    log.error("Background processing failed", err, {
+      propertyAddress: payload?.property_address,
+    });
+  }
 }
 
 export default async function handler(req, res) {
@@ -188,34 +188,17 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Return 200 immediately — the frontend shows "Thank you" right away.
-  res.status(200).json({ success: true });
+  const payload =
+    typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
-  try {
-    const payload =
-      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+  log.info("Request received — responding immediately, processing in background", {
+    propertyAddress: payload.property_address,
+    propertyType: payload.property_type,
+    referralPartnerEmail: payload.referral_partner_email,
+  });
 
-    const aiResult = await callOpenAI(FULL_SUBMISSION_SYSTEM_PROMPT, {
-      property_address: payload.property_address,
-      property_type: payload.property_type,
-      property_estimated_value: payload.property_estimated_value,
-      debt_on_property: payload.debt_on_property,
-      loan_amount_request: payload.loan_amount_request,
-      borrower_name: payload.borrower_name,
-      business_name: payload.business_name,
-    });
+  // Keep the function alive after responding so OpenAI/Pipedrive/Resend can finish.
+  waitUntil(processFullSubmission(payload));
 
-    if (aiResult.result === "PASS") {
-      const { dealId } = await submitToPipedrive(payload, aiResult.summary);
-      await sendWorkerPassEmail(payload, aiResult, dealId).catch((err) =>
-        console.error("Failed to send pass email:", err)
-      );
-    } else {
-      await sendWorkerReviewEmail(payload, aiResult).catch((err) =>
-        console.error("Failed to send review email:", err)
-      );
-    }
-  } catch (err) {
-    console.error("full-submission background error:", err);
-  }
+  return res.status(200).json({ success: true });
 }

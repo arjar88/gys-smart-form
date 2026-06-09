@@ -1,5 +1,8 @@
-import { Resend } from "resend";
 import { callOpenAI } from "./lib/openai.js";
+import { FROM_EMAIL, WORKER_EMAIL, sendEmail } from "./lib/email.js";
+import { createLogger } from "./lib/logger.js";
+
+const log = createLogger("quick-review");
 
 const QUICK_REVIEW_SYSTEM_PROMPT = `You are the Quick Review AI for GYS Mortgage.
 Your purpose is to determine whether a referral partner should proceed with a full submission.
@@ -95,17 +98,8 @@ function formatMoney(value) {
 }
 
 async function sendRejectionEmail(payload, aiResult) {
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) {
-    console.error("RESEND_API_KEY not configured — skipping email.");
-    return;
-  }
-
-  const resend = new Resend(resendKey);
-
   const rpEmail = payload.referral_partner_email;
   const rpName = payload.referral_partner_name || "there";
-  const workerEmail = "gabriel@gysmortgage.com";
 
   const isManualReview = aiResult.result === "MANUAL_REVIEW";
   const subject = isManualReview
@@ -116,12 +110,13 @@ async function sendRejectionEmail(payload, aiResult) {
     ? `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nYour submission requires a manual review before we can proceed. Our team will be in touch shortly to discuss next steps.\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nProperty Value: ${formatMoney(payload.property_estimated_value)}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`
     : `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nUnfortunately, your submission did not pass our initial screening.\n\nReason: ${aiResult.reason || "This opportunity does not meet our current lending criteria."}\n\nProperty: ${payload.property_address || "N/A"}\nProperty Type: ${payload.property_type || "N/A"}\nProperty Value: ${formatMoney(payload.property_estimated_value)}\n\nIf you would like to understand more about why your submission did not qualify, please reply to this email and we will be happy to explain.\n\nGYS Mortgage Team`;
 
-  const toAddresses = rpEmail ? [rpEmail] : [workerEmail];
+  const toAddresses = rpEmail ? [rpEmail] : [WORKER_EMAIL];
+  const ccAddresses = rpEmail ? [WORKER_EMAIL] : [];
 
-  await resend.emails.send({
-    from: "GYS Mortgage <noreply@gysmortgage.com>",
+  await sendEmail({
+    from: FROM_EMAIL,
     to: toAddresses,
-    cc: rpEmail ? [workerEmail] : [],
+    cc: ccAddresses,
     subject,
     text: bodyText,
   });
@@ -144,6 +139,12 @@ export default async function handler(req, res) {
     const payload =
       typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
+    log.info("Request received", {
+      propertyAddress: payload.property_address,
+      propertyType: payload.property_type,
+      referralPartnerEmail: payload.referral_partner_email,
+    });
+
     const aiResult = await callOpenAI(QUICK_REVIEW_SYSTEM_PROMPT, {
       property_address: payload.property_address,
       property_type: payload.property_type,
@@ -151,14 +152,26 @@ export default async function handler(req, res) {
       debt_on_property: payload.debt_on_property,
     });
 
+    log.info("AI review complete", {
+      result: aiResult.result,
+      confidence: aiResult.confidence,
+      reason: aiResult.reason,
+      summary: aiResult.summary,
+      nextStep: aiResult.next_step,
+      propertyTypeConfirmed: aiResult.property_type_confirmed,
+      populationFound: aiResult.population_found,
+      availableEquity: aiResult.available_equity,
+      flags: aiResult.flags,
+    });
+
     if (aiResult.result === "PASS") {
+      log.info("PASS — no email sent");
       return res.status(200).json({ result: "PASS", summary: aiResult.summary });
     }
 
-    // DECLINE or MANUAL_REVIEW — send rejection email
-    await sendRejectionEmail(payload, aiResult).catch((err) =>
-      console.error("Failed to send rejection email:", err)
-    );
+    log.info("Not PASS — sending email via Resend", { result: aiResult.result });
+    await sendRejectionEmail(payload, aiResult);
+    log.info("Email sent successfully");
 
     return res.status(200).json({
       result: aiResult.result,
@@ -167,7 +180,7 @@ export default async function handler(req, res) {
         "Your submission does not meet our current lending criteria.",
     });
   } catch (err) {
-    console.error("quick-review error:", err);
+    log.error("Request failed", err);
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
 }

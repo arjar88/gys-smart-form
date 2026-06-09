@@ -1,3 +1,7 @@
+import { pipedriveRequest } from "./pipedrive-request.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("pipedrive-deals");
 const COMPANY_DOMAIN = "gysmortgage";
 
 function getPropertyTypeId(label) {
@@ -44,58 +48,68 @@ export async function createDeal(payload, borrowerId, organizationId, rpId, apiT
     pipeline_id: 10,
     stage_id: 54,
     status: "open",
-
-    // RP Automation custom field
     d903d5c1eb13f0b080d804d8da57d4cef97f5720: rpId,
-
-    // Property Address
     "16579d25bd4835bcd26420525830ab4d36632c8a": payload.property_address,
-
-    // Property Estimated Value
-    "30c6290521974089a460239c0bcef01782803a9e": parseNumericValue(payload.property_estimated_value),
-
-    // Debt on Property
-    "9a0d6ccdf53b022fade3c1467e9b69301b277660": parseNumericValue(payload.debt_on_property),
-
-    // Property Type
-    db5e38e15d0e3e685800ebf6974f1e6851f21877: getPropertyTypeId(payload.property_type),
-
-    // Loan Amount Requested
-    b854a87bb38f026b9c5cc8591960e291e36642d1: parseNumericValue(payload.loan_amount_request),
-
-    // Zip Code
+    "30c6290521974089a460239c0bcef01782803a9e": parseNumericValue(
+      payload.property_estimated_value
+    ),
+    "9a0d6ccdf53b022fade3c1467e9b69301b277660": parseNumericValue(
+      payload.debt_on_property
+    ),
+    db5e38e15d0e3e685800ebf6974f1e6851f21877: getPropertyTypeId(
+      payload.property_type
+    ),
+    b854a87bb38f026b9c5cc8591960e291e36642d1: parseNumericValue(
+      payload.loan_amount_request
+    ),
     e197b5d57a279834d7f0779caeb45e61f888a409: payload.zip_code,
-
-    // Relationship With Borrower
-    d4a3e6efc23e30a7f95654def5c386a678166f58: getRelationshipTypeId(payload.relationship_with_borrower),
+    d4a3e6efc23e30a7f95654def5c386a678166f58: getRelationshipTypeId(
+      payload.relationship_with_borrower
+    ),
   };
 
-  const res = await fetch(url, {
+  log.info("Creating deal", {
+    title: dealData.title,
+    borrowerId,
+    organizationId,
+    rpId,
+    propertyType: payload.property_type,
+    propertyTypeId: dealData.db5e38e15d0e3e685800ebf6974f1e6851f21877,
+  });
+
+  const { ok, data } = await pipedriveRequest("createDeal", url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(dealData),
   });
 
-  const data = await res.json();
-
-  if (!data.success || !data.data) {
-    console.error("Deal creation failed:", data);
+  if (!ok || !data?.data) {
     throw new Error("Deal creation failed");
   }
 
+  log.info("Deal created", { dealId: data.data.id, title: data.data.title });
   return data.data.id;
 }
 
 export async function addReferralPartnerToDeal(dealId, rpId, apiToken) {
-  if (!rpId) return;
+  if (!rpId) {
+    log.info("Skipping deal participant — no referral partner id", { dealId });
+    return;
+  }
 
   const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/deals/${dealId}/participants?api_token=${apiToken}`;
 
-  await fetch(url, {
+  const { ok } = await pipedriveRequest("addReferralPartnerToDeal", url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ person_id: rpId }),
   });
+
+  if (!ok) {
+    throw new Error("Failed to add referral partner to deal");
+  }
+
+  log.info("Added referral partner to deal", { dealId, rpId });
 }
 
 export async function addDealNote(payload, dealId, aiSummary, apiToken) {
@@ -128,9 +142,17 @@ Notes: ${payload.notes || "N/A"}
 ${aiSummary || "N/A"}`,
   };
 
-  await fetch(url, {
+  log.info("Adding deal note", { dealId });
+
+  const { ok } = await pipedriveRequest("addDealNote", url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(noteData),
   });
+
+  if (!ok) {
+    throw new Error("Failed to add deal note");
+  }
+
+  log.info("Deal note added", { dealId });
 }

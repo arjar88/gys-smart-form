@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vercel/functions": "^3.6.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-phone-number-input": "^3.4.17",
