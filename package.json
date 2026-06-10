@@ -23,5 +23,8 @@
     "tailwindcss": "^4.1.8",
     "vite": "^6.3.5",
     "vitest": "^4.1.8"
+  },
+  "vitest": {
+    "include": ["tests/**/*.test.js"]
   }
 }

@@ -2,18 +2,29 @@ import { describe, expect, it } from "vitest";
 import { formatAiReviewDetails, formatPropertyDetails } from "../server/lib/email.js";
 
 describe("formatPropertyDetails", () => {
-  it("formats all property fields", () => {
+  it("formats all property fields including zip code", () => {
     const result = formatPropertyDetails({
       property_address: "123 Main St",
+      zip_code: "10001",
       property_estimated_value: "500000",
       debt_on_property: "100,000",
       property_type: "Commercial",
     });
 
     expect(result).toContain("Address: 123 Main St");
+    expect(result).toContain("Zip Code: 10001");
     expect(result).toContain("Value: $500,000");
     expect(result).toContain("Debt: $100,000");
     expect(result).toContain("Property Type: Commercial");
+  });
+
+  it("omits zip code line when not provided", () => {
+    const result = formatPropertyDetails({
+      property_address: "123 Main St",
+      property_type: "Commercial",
+    });
+
+    expect(result).not.toContain("Zip Code:");
   });
 
   it("uses N/A for missing text fields and $0 for missing numeric fields", () => {

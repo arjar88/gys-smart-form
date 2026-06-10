@@ -52,9 +52,10 @@ describe("callOpenAI", () => {
     expect(body.instructions).toBe("System prompt");
     expect(body.input).toContain("123 Main St");
     expect(body.text.format.type).toBe("json_schema");
+    expect(body.text.format.strict).toBe(true);
   });
 
-  it("logs web search calls when present in response output", async () => {
+  it("parses response when web search calls are present in output", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
