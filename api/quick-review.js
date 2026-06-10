@@ -1,11 +1,11 @@
-import { callOpenAI } from "./lib/openai.js";
+import { callOpenAI } from "../server/lib/openai.js";
 import {
   FROM_EMAIL,
   WORKER_EMAIL,
   formatPropertyDetails,
   sendEmail,
-} from "./lib/email.js";
-import { createLogger } from "./lib/logger.js";
+} from "../server/lib/email.js";
+import { createLogger } from "../server/lib/logger.js";
 
 const log = createLogger("quick-review");
 

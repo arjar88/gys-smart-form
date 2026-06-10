@@ -33,7 +33,7 @@ describe("callOpenAI", () => {
       }),
     });
 
-    const { callOpenAI } = await import("./openai.js");
+    const { callOpenAI } = await import("../server/lib/openai.js");
     const result = await callOpenAI("System prompt", {
       property_address: "123 Main St",
       zip_code: "10001",
@@ -88,7 +88,7 @@ describe("callOpenAI", () => {
       }),
     });
 
-    const { callOpenAI } = await import("./openai.js");
+    const { callOpenAI } = await import("../server/lib/openai.js");
     const result = await callOpenAI("System prompt", {
       property_address: "1819 Flatbush Ave",
       zip_code: "11210",

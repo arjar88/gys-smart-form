@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./lib/openai.js", () => ({
+vi.mock("../server/lib/openai.js", () => ({
   callOpenAI: vi.fn(),
 }));
 
-vi.mock("./lib/email.js", async (importOriginal) => {
+vi.mock("../server/lib/email.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
@@ -12,9 +12,9 @@ vi.mock("./lib/email.js", async (importOriginal) => {
   };
 });
 
-import handler from "./quick-review.js";
-import { callOpenAI } from "./lib/openai.js";
-import { sendEmail, WORKER_EMAIL } from "./lib/email.js";
+import handler from "../api/quick-review.js";
+import { callOpenAI } from "../server/lib/openai.js";
+import { sendEmail, WORKER_EMAIL } from "../server/lib/email.js";
 
 const samplePayload = {
   property_address: "123 Main St",

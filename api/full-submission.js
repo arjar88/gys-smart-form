@@ -1,13 +1,13 @@
 import { waitUntil } from "@vercel/functions";
-import { callOpenAI } from "./lib/openai.js";
+import { callOpenAI } from "../server/lib/openai.js";
 import {
   FROM_EMAIL,
   WORKER_EMAIL,
   formatPropertyDetails,
   sendEmail,
-} from "./lib/email.js";
-import { submitToPipedrive } from "./lib/pipedrive.js";
-import { createLogger } from "./lib/logger.js";
+} from "../server/lib/email.js";
+import { submitToPipedrive } from "../server/lib/pipedrive.js";
+import { createLogger } from "../server/lib/logger.js";
 
 const log = createLogger("full-submission");
 

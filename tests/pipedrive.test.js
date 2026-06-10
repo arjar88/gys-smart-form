@@ -1,25 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./pipedrive-persons.js", () => ({
+vi.mock("../server/lib/pipedrive-persons.js", () => ({
   findOrCreateBorrower: vi.fn(),
   findOrCreateRP: vi.fn(),
 }));
 
-vi.mock("./pipedrive-deals.js", () => ({
+vi.mock("../server/lib/pipedrive-deals.js", () => ({
   createDeal: vi.fn(),
   setCalendlyUid: vi.fn(),
   addReferralPartnerToDeal: vi.fn(),
   addDealNote: vi.fn(),
 }));
 
-import { submitToPipedrive } from "./pipedrive.js";
-import { findOrCreateBorrower, findOrCreateRP } from "./pipedrive-persons.js";
+import { submitToPipedrive } from "../server/lib/pipedrive.js";
+import { findOrCreateBorrower, findOrCreateRP } from "../server/lib/pipedrive-persons.js";
 import {
   createDeal,
   setCalendlyUid,
   addReferralPartnerToDeal,
   addDealNote,
-} from "./pipedrive-deals.js";
+} from "../server/lib/pipedrive-deals.js";
 
 const samplePayload = {
   property_address: "789 Pine Rd",

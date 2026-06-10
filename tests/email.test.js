@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAiReviewDetails, formatPropertyDetails } from "./email.js";
+import { formatAiReviewDetails, formatPropertyDetails } from "../server/lib/email.js";
 
 describe("formatPropertyDetails", () => {
   it("formats all property fields", () => {

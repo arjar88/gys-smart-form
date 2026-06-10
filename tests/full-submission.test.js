@@ -4,15 +4,15 @@ vi.mock("@vercel/functions", () => ({
   waitUntil: vi.fn((promise) => promise),
 }));
 
-vi.mock("./lib/openai.js", () => ({
+vi.mock("../server/lib/openai.js", () => ({
   callOpenAI: vi.fn(),
 }));
 
-vi.mock("./lib/pipedrive.js", () => ({
+vi.mock("../server/lib/pipedrive.js", () => ({
   submitToPipedrive: vi.fn(),
 }));
 
-vi.mock("./lib/email.js", async (importOriginal) => {
+vi.mock("../server/lib/email.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
@@ -21,10 +21,10 @@ vi.mock("./lib/email.js", async (importOriginal) => {
 });
 
 import { waitUntil } from "@vercel/functions";
-import handler from "./full-submission.js";
-import { callOpenAI } from "./lib/openai.js";
-import { submitToPipedrive } from "./lib/pipedrive.js";
-import { sendEmail, WORKER_EMAIL } from "./lib/email.js";
+import handler from "../api/full-submission.js";
+import { callOpenAI } from "../server/lib/openai.js";
+import { submitToPipedrive } from "../server/lib/pipedrive.js";
+import { sendEmail, WORKER_EMAIL } from "../server/lib/email.js";
 
 const samplePayload = {
   property_address: "456 Oak Ave",
