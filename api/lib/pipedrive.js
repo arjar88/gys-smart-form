@@ -9,7 +9,7 @@ import { createLogger } from "./logger.js";
 
 const log = createLogger("pipedrive");
 
-export async function submitToPipedrive(payload, aiSummary) {
+export async function submitToPipedrive(payload) {
   const apiToken = process.env.PIPEDRIVE_API_KEY;
   if (!apiToken) throw new Error("PIPEDRIVE_API_KEY is not configured.");
 
@@ -55,7 +55,7 @@ export async function submitToPipedrive(payload, aiSummary) {
   await Promise.all([
     setCalendlyUid(dealId, apiToken),
     addReferralPartnerToDeal(dealId, rpId, apiToken),
-    addDealNote(payload, dealId, aiSummary, apiToken),
+    addDealNote(payload, dealId, apiToken),
   ]);
 
   log.info("Pipedrive submission complete", {

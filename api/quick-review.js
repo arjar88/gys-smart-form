@@ -2,7 +2,6 @@ import { callOpenAI } from "./lib/openai.js";
 import {
   FROM_EMAIL,
   WORKER_EMAIL,
-  formatAiReviewDetails,
   formatPropertyDetails,
   sendEmail,
 } from "./lib/email.js";
@@ -37,44 +36,56 @@ GYS DOES NOT FINANCE:
 INPUTS
 You will receive:
 - Property Address
+- Zip Code
 - Property Type
 - Property Value or Purchase Price
 - Current Debt (debt_on_property)
 
-Property Types: Commercial, Mixed Use, Multifamily, Residential Investment, Primary Residence, Land, Other
+Property Types: Commercial, Mixed Use, Multifamily, Residential Investment, Primary Residence, Land, Ground-Up Construction, Other
 
 IMPORTANT RULES
 - Use the values submitted by the referral partner.
-- You may research the property to: confirm property type, confirm population, identify obvious concerns.
+- You MUST use web search to research the property: verify the submitted property type, verify zip code population, identify obvious concerns.
 - Do NOT replace the submitted value with your own estimate.
+- If the verified property type differs from what was submitted, flag the discrepancy and return MANUAL_REVIEW.
 
 STEP 1 — AUTOMATIC DECLINES
 Immediately decline:
 - Primary Residence → Reason: GYS does not finance primary residences.
 - Ground-Up Construction → Reason: GYS does not finance ground-up construction.
 - Land Property With Population Below 75,000 → Reason: Land population below minimum requirement.
-- Commercial Property With Population Below 5,000 → Reason: Commercial market population below minimum requirement.
+- Commercial Property With Zip Code Population Below 5,000 → Reason: Commercial market population below minimum requirement.
 
-STEP 2 — PROPERTY TYPE REVIEW
-Pull the data that was submitted to determine property type.
+STEP 2 — PROPERTY TYPE VERIFICATION
+Research the property address and zip code to verify the submitted property type.
+If the verified property type does not match the submitted type → MANUAL_REVIEW (Reason: Property type could not be confirmed or differs from submission.)
+If property type cannot be determined → MANUAL_REVIEW (Reason: Unable to verify property type.)
 
-STEP 3 — RESIDENTIAL INVESTMENT REVIEW
+STEP 3 — POPULATION CHECK
+Verify the zip code population is greater than 5,000.
+If population cannot be determined with confidence → MANUAL_REVIEW (Reason: Unable to verify population.)
+Never decline due to population uncertainty alone.
+
+STEP 4 — ZERO OR MISSING VALUE CHECK
+If Property Value is 0, "n/a", "N/A", unknown, or missing → MANUAL_REVIEW (Reason: Property value requires manual review.)
+If Current Debt is 0, "n/a", "N/A", unknown, or missing → MANUAL_REVIEW (Reason: Current debt requires manual review.)
+Do NOT decline for zero or missing values — always route to MANUAL_REVIEW.
+
+STEP 5 — RESIDENTIAL INVESTMENT REVIEW
 Calculate Available Equity = (Property Value × 75%) − Current Debt
 If Available Equity > $100,000 → PASS
 If Available Equity ≤ $100,000 → MANUAL_REVIEW (Reason: Limited available equity.)
-If Current Debt is zero or unknown, assume it could be a purchase → PASS (Reason: Potential fit for residential investment financing.)
 
-STEP 4 — COMMERCIAL REVIEW
+STEP 6 — COMMERCIAL REVIEW
 Calculate Available Equity = (Property Value × 70%) − Current Debt
 If Available Equity > $100,000 → PASS
 If Available Equity ≤ $100,000 → MANUAL_REVIEW (Reason: Property may be fully leveraged under standard commercial guidelines and requires review.)
-If Current Debt is zero or unknown, assume it could be a purchase → PASS (Reason: Potential fit for commercial financing.)
 
-STEP 5 — SPECIAL ASSET REVIEW
+STEP 7 — SPECIAL ASSET REVIEW
 Automatically send to MANUAL_REVIEW: Hotels, Gas Stations, Churches, Schools, Assisted Living, Mobile Home Parks, Self Storage, Special Purpose Assets.
 Reason: Special asset requires review before requesting a full submission.
 
-STEP 6 — MANUAL REVIEW TRIGGERS
+STEP 8 — MANUAL REVIEW TRIGGERS
 Return MANUAL_REVIEW if: property type is unclear, population cannot be verified, critical information is missing, AI confidence is below 80%, ownership appears unusual, major discrepancies are found.
 
 CORE PHILOSOPHY
@@ -101,7 +112,6 @@ async function sendRejectionEmail(payload, aiResult) {
   const rpEmail = payload.referral_partner_email;
   const rpName = payload.referral_partner_name || "there";
   const propertyDetails = formatPropertyDetails(payload);
-  const aiReviewDetails = formatAiReviewDetails(aiResult);
 
   const isManualReview = aiResult.result === "MANUAL_REVIEW";
   const subject = isManualReview
@@ -109,16 +119,15 @@ async function sendRejectionEmail(payload, aiResult) {
     : "GYS Mortgage — Quick Review Result";
 
   const bodyText = isManualReview
-    ? `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nYour submission requires a manual review before we can proceed. Our team will be in touch shortly to discuss next steps.\n\n--- AI Review ---\n${aiReviewDetails}\n\n${propertyDetails}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`
-    : `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nUnfortunately, your submission did not pass our initial screening.\n\n--- AI Review ---\n${aiReviewDetails}\n\n${propertyDetails}\n\nIf you would like to understand more about why your submission did not qualify, please reply to this email and we will be happy to explain.\n\nGYS Mortgage Team`;
+    ? `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nYour submission requires a manual review before we can proceed. Our team will be in touch shortly to discuss next steps.\n\n${propertyDetails}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`
+    : `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nUnfortunately, your submission did not pass our initial screening.\n\n${propertyDetails}\n\nIf you would like to understand more about why your submission did not qualify, please reply to this email and we will be happy to explain.\n\nGYS Mortgage Team`;
 
   const toAddresses = rpEmail ? [rpEmail] : [WORKER_EMAIL];
-  const ccAddresses = rpEmail ? [WORKER_EMAIL] : [];
 
   await sendEmail({
     from: FROM_EMAIL,
     to: toAddresses,
-    cc: ccAddresses,
+    cc: [],
     subject,
     text: bodyText,
   });
@@ -143,12 +152,14 @@ export default async function handler(req, res) {
 
     log.info("Request received", {
       propertyAddress: payload.property_address,
+      zipCode: payload.zip_code,
       propertyType: payload.property_type,
       referralPartnerEmail: payload.referral_partner_email,
     });
 
     const aiResult = await callOpenAI(QUICK_REVIEW_SYSTEM_PROMPT, {
       property_address: payload.property_address,
+      zip_code: payload.zip_code,
       property_type: payload.property_type,
       property_estimated_value: payload.property_estimated_value,
       debt_on_property: payload.debt_on_property,

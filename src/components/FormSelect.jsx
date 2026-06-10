@@ -22,7 +22,7 @@ export function FormSelect({
           required={required}
           className="w-full appearance-none rounded-md border border-gys-input-border bg-white px-4 py-3 pr-10 text-[15px] text-gys-label focus:border-gys-primary focus:outline-none focus:ring-2 focus:ring-gys-primary/20"
         >
-          <option value="" disabled>
+          <option value="" disabled className="font-light text-gys-placeholder">
             {placeholder ?? label}
           </option>
           {options.map((option) => (

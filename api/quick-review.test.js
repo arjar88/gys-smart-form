@@ -18,6 +18,7 @@ import { sendEmail, WORKER_EMAIL } from "./lib/email.js";
 
 const samplePayload = {
   property_address: "123 Main St",
+  zip_code: "10001",
   property_type: "Commercial",
   property_estimated_value: "500000",
   debt_on_property: "100000",
@@ -70,7 +71,7 @@ describe("quick-review handler", () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it("sends manual review email with AI details on MANUAL_REVIEW", async () => {
+  it("sends manual review email to RP only on MANUAL_REVIEW", async () => {
     callOpenAI.mockResolvedValue({
       result: "MANUAL_REVIEW",
       reason: "Limited equity",
@@ -87,16 +88,16 @@ describe("quick-review handler", () => {
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: ["jane@example.com"],
-        cc: [WORKER_EMAIL],
+        cc: [],
         subject: "GYS Mortgage — Your Quick Review Requires Manual Review",
-        text: expect.stringContaining("--- AI Review ---"),
       })
     );
-    expect(sendEmail.mock.calls[0][0].text).toContain("Reason: Limited equity");
+    expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
     expect(sendEmail.mock.calls[0][0].text).toContain("123 Main St");
+    expect(sendEmail.mock.calls[0][0].text).toContain("10001");
   });
 
-  it("sends decline email with AI details on DECLINE", async () => {
+  it("sends decline email to RP only on DECLINE", async () => {
     callOpenAI.mockResolvedValue({
       result: "DECLINE",
       reason: "Primary residence",
@@ -113,11 +114,13 @@ describe("quick-review handler", () => {
     expect(sendEmail).toHaveBeenCalledOnce();
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
+        to: ["jane@example.com"],
+        cc: [],
         subject: "GYS Mortgage — Quick Review Result",
         text: expect.stringContaining("Unfortunately, your submission did not pass"),
       })
     );
-    expect(sendEmail.mock.calls[0][0].text).toContain("Reason: Primary residence");
+    expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
   });
 
   it("falls back to worker email when referral partner email is missing", async () => {
@@ -140,6 +143,21 @@ describe("quick-review handler", () => {
         to: [WORKER_EMAIL],
         cc: [],
       })
+    );
+  });
+
+  it("passes zip_code to OpenAI", async () => {
+    callOpenAI.mockResolvedValue({
+      result: "PASS",
+      summary: "Looks good",
+    });
+
+    const res = createMockRes();
+    await handler({ method: "POST", body: samplePayload }, res);
+
+    expect(callOpenAI).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ zip_code: "10001" })
     );
   });
 });

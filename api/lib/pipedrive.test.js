@@ -51,7 +51,7 @@ describe("submitToPipedrive", () => {
     findOrCreateBorrower.mockResolvedValue({ personId: 202, orgId: 303 });
     createDeal.mockResolvedValue(40405);
 
-    const result = await submitToPipedrive(samplePayload, "AI summary text");
+    const result = await submitToPipedrive(samplePayload);
 
     expect(findOrCreateRP).toHaveBeenCalledWith(
       samplePayload.referral_partner_name,
@@ -83,7 +83,6 @@ describe("submitToPipedrive", () => {
     expect(addDealNote).toHaveBeenCalledWith(
       samplePayload,
       40405,
-      "AI summary text",
       "test-api-token"
     );
     expect(result).toEqual({ success: true, dealId: 40405 });
@@ -92,8 +91,6 @@ describe("submitToPipedrive", () => {
   it("throws when PIPEDRIVE_API_KEY is missing", async () => {
     delete process.env.PIPEDRIVE_API_KEY;
 
-    await expect(
-      submitToPipedrive(samplePayload, "summary")
-    ).rejects.toThrow("PIPEDRIVE_API_KEY is not configured.");
+    await expect(submitToPipedrive(samplePayload)).rejects.toThrow("PIPEDRIVE_API_KEY is not configured.");
   });
 });

@@ -6,7 +6,7 @@
   --color-gys-form-bg: #eef1f5;
   --color-gys-input-border: #d8dee6;
   --color-gys-label: #1a1a1a;
-  --color-gys-placeholder: #9aa3ad;
+  --color-gys-placeholder: #b8c0c9;
   --color-gys-primary: #1a6cf0;
   --color-gys-primary-hover: #1558c7;
   --color-gys-required: #e53935;
@@ -68,6 +68,7 @@ textarea {
 
 .gys-phone-input .PhoneInputInput::placeholder {
   color: var(--color-gys-placeholder);
+  font-weight: 300;
 }
 
 .gys-phone-input .PhoneInputInput:focus {

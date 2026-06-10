@@ -5,6 +5,7 @@ export const PROPERTY_TYPE_OPTIONS = [
   { value: "Mixed Use", label: "Mixed Use" },
   { value: "Multifamily", label: "Multifamily" },
   { value: "Land", label: "Land" },
+  { value: "Ground-Up Construction", label: "Ground-Up Construction" },
   { value: "Other", label: "Other" },
 ];
 

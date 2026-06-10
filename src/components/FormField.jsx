@@ -25,7 +25,7 @@ export function FormField({
         required={required}
         min={min}
         step={step}
-        className="w-full rounded-md border border-gys-input-border bg-white px-4 py-3 text-[15px] text-gys-label placeholder:text-gys-placeholder focus:border-gys-primary focus:outline-none focus:ring-2 focus:ring-gys-primary/20"
+        className="w-full rounded-md border border-gys-input-border bg-white px-4 py-3 text-[15px] text-gys-label placeholder:font-light placeholder:text-gys-placeholder focus:border-gys-primary focus:outline-none focus:ring-2 focus:ring-gys-primary/20"
       />
     </div>
   );

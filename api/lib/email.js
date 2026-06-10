@@ -13,10 +13,18 @@ function formatMoney(value) {
 }
 
 export function formatPropertyDetails(payload) {
-  return `Address: ${payload.property_address || "N/A"}
-Value: ${formatMoney(payload.property_estimated_value)}
-Debt: ${formatMoney(payload.debt_on_property)}
-Property Type: ${payload.property_type || "N/A"}`;
+  const lines = [
+    `Address: ${payload.property_address || "N/A"}`,
+  ];
+  if (payload.zip_code) {
+    lines.push(`Zip Code: ${payload.zip_code}`);
+  }
+  lines.push(
+    `Value: ${formatMoney(payload.property_estimated_value)}`,
+    `Debt: ${formatMoney(payload.debt_on_property)}`,
+    `Property Type: ${payload.property_type || "N/A"}`
+  );
+  return lines.join("\n");
 }
 
 export function formatAiReviewDetails(aiResult) {

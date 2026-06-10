@@ -10,6 +10,7 @@ import { PROPERTY_TYPE_OPTIONS } from "../constants/qualificationCriteria";
 
 const INITIAL = {
   property_address: "",
+  zip_code: "",
   property_type: "",
   property_estimated_value: "",
   debt_on_property: "",
@@ -22,6 +23,7 @@ export function Screener({ onPass, onFail }) {
   const [form, setForm] = useState(INITIAL);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassModal, setShowPassModal] = useState(false);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -48,7 +50,7 @@ export function Screener({ onPass, onFail }) {
       }
 
       if (result.result === "PASS") {
-        onPass(form);
+        setShowPassModal(true);
       } else {
         onFail(
           form,
@@ -63,7 +65,32 @@ export function Screener({ onPass, onFail }) {
     }
   }
 
+  function handleContinueToFullSubmission() {
+    setShowPassModal(false);
+    onPass(form);
+  }
+
   return (
+    <>
+    {showPassModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+        <div className="w-full max-w-md rounded-2xl bg-white px-8 py-10 text-center shadow-xl">
+          <h2 className="mb-4 font-serif text-2xl font-bold text-gys-label">
+            Your file has good potential
+          </h2>
+          <p className="mb-8 text-[15px] leading-relaxed text-gys-label/80">
+            Submit the full file here to move forward with your deal.
+          </p>
+          <button
+            type="button"
+            onClick={handleContinueToFullSubmission}
+            className="w-full rounded-md bg-gys-primary px-6 py-3 text-[15px] font-medium text-white transition-colors hover:bg-gys-primary-hover"
+          >
+            Submit Full File
+          </button>
+        </div>
+      </div>
+    )}
     <FormContainer
       title="Quick Deal Review"
       footer={
@@ -92,6 +119,14 @@ export function Screener({ onPass, onFail }) {
             value={form.property_address}
             onChange={handleChange}
             placeholder="Property Address"
+            required
+          />
+          <FormField
+            label="Zip Code"
+            name="zip_code"
+            value={form.zip_code}
+            onChange={handleChange}
+            placeholder="Zip Code"
             required
           />
           <FormSelect
@@ -150,5 +185,6 @@ export function Screener({ onPass, onFail }) {
         </FormSection>
       </form>
     </FormContainer>
+    </>
   );
 }

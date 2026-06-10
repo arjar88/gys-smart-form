@@ -104,14 +104,11 @@ describe("full-submission handler", () => {
     await runHandler();
 
     expect(submitToPipedrive).toHaveBeenCalledOnce();
-    expect(submitToPipedrive).toHaveBeenCalledWith(
-      samplePayload,
-      "Worth a discovery call"
-    );
+    expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload);
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it("sends manual review email on MANUAL_REVIEW without Pipedrive", async () => {
+  it("sends manual review email to RP and CCs borrower on MANUAL_REVIEW", async () => {
     callOpenAI.mockResolvedValue({
       result: "MANUAL_REVIEW",
       reason: "Special asset type",
@@ -126,16 +123,15 @@ describe("full-submission handler", () => {
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: ["jane@example.com"],
-        cc: [WORKER_EMAIL],
+        cc: ["john@example.com"],
         subject: "GYS Mortgage — Deal Submission Under Review",
-        text: expect.stringContaining("--- AI Review ---"),
       })
     );
-    expect(sendEmail.mock.calls[0][0].text).toContain("Reason: Special asset type");
+    expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
     expect(sendEmail.mock.calls[0][0].text).toContain("John Borrower");
   });
 
-  it("sends decline email on DECLINE without Pipedrive", async () => {
+  it("sends decline email to RP and CCs borrower on DECLINE", async () => {
     callOpenAI.mockResolvedValue({
       result: "DECLINE",
       reason: "Primary residence",
@@ -149,10 +145,39 @@ describe("full-submission handler", () => {
     expect(sendEmail).toHaveBeenCalledOnce();
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
+        to: ["jane@example.com"],
+        cc: ["john@example.com"],
         subject: "GYS Mortgage — Deal Submission Update",
         text: expect.stringContaining("unable to move forward"),
       })
     );
-    expect(sendEmail.mock.calls[0][0].text).toContain("Reason: Primary residence");
+    expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
+  });
+
+  it("does not pass loan_amount_request to OpenAI", async () => {
+    callOpenAI.mockResolvedValue({ result: "PASS", summary: "Approved" });
+    submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
+
+    await runHandler();
+
+    const openAiPayload = callOpenAI.mock.calls[0][1];
+    expect(openAiPayload).not.toHaveProperty("loan_amount_request");
+    expect(openAiPayload).toHaveProperty("zip_code", "10001");
+  });
+
+  it("falls back to worker email when RP email is missing", async () => {
+    callOpenAI.mockResolvedValue({
+      result: "MANUAL_REVIEW",
+      reason: "Needs review",
+    });
+
+    await runHandler({ ...samplePayload, referral_partner_email: "" });
+
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: [WORKER_EMAIL],
+        cc: ["john@example.com"],
+      })
+    );
   });
 });

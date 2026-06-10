@@ -15,6 +15,7 @@ function getPropertyTypeId(label) {
     "Mixed Use": 149,
     Multifamily: 150,
     Other: 151,
+    "Ground-Up Construction": 169,
   };
   return map[label] || null;
 }
@@ -133,7 +134,7 @@ export async function addReferralPartnerToDeal(dealId, rpId, apiToken) {
   log.info("Added referral partner to deal", { dealId, rpId });
 }
 
-export async function addDealNote(payload, dealId, aiSummary, apiToken) {
+export async function addDealNote(payload, dealId, apiToken) {
   const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/notes?api_token=${apiToken}`;
 
   const noteData = {
@@ -157,10 +158,7 @@ Loan Amount Requested: $${formatMoneyForNote(payload.loan_amount_request)}
 Zip Code: ${payload.zip_code || "N/A"}
 Relationship With Borrower: ${payload.relationship_with_borrower || "N/A"}
 
-Notes: ${payload.notes || "N/A"}
-
---- AI Review ---
-${aiSummary || "N/A"}`,
+Notes: ${payload.notes || "N/A"}`,
   };
 
   log.info("Adding deal note", { dealId });

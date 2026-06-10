@@ -63,10 +63,16 @@ export function SubmissionForm({ initialData }) {
 
   if (submitted) {
     return (
-      <FormContainer title="Submission Received">
-        <p className="text-[15px] leading-relaxed text-gys-label/90">
-          Thank you for submitting your deal. Our team will review your
-          information and be in touch shortly.
+      <FormContainer title="Submission Received" centerTitle>
+        <p className="text-center text-[15px] leading-relaxed text-gys-label/90">
+          Thank you for submitting your deal, check your inbox for next steps — if
+          you would like to edit your submission, reach out to{" "}
+          <a
+            href="mailto:subs@gysmortgage.com"
+            className="text-gys-primary underline hover:text-gys-primary-hover"
+          >
+            subs@gysmortgage.com
+          </a>
         </p>
       </FormContainer>
     );
@@ -75,6 +81,7 @@ export function SubmissionForm({ initialData }) {
   return (
     <FormContainer
       title="File Submission Form"
+      centerTitle
       footer={
         <div className="mt-8 flex flex-col items-end gap-3">
           {error && (
@@ -89,7 +96,7 @@ export function SubmissionForm({ initialData }) {
       }
     >
       <form id="submission-form" onSubmit={handleSubmit} className="space-y-2">
-        <FormSection title="Referral Partner Info">
+        <FormSection title="Referral Partner Info" largeTitle>
           <FormField
             label="Rep Name"
             name="referral_partner_name"
@@ -103,7 +110,7 @@ export function SubmissionForm({ initialData }) {
             name="referral_partner_company"
             value={form.referral_partner_company}
             onChange={handleChange}
-            placeholder="Company Name"
+            placeholder="e.g. Acme Corp"
             required
           />
           <FormPhoneInput
@@ -129,7 +136,7 @@ export function SubmissionForm({ initialData }) {
             value={form.relationship_with_borrower}
             onChange={handleChange}
             options={RELATIONSHIP_OPTIONS}
-            placeholder="Relationship with Borrower"
+            placeholder="Select relationship..."
             required
           />
         </FormSection>
@@ -141,6 +148,14 @@ export function SubmissionForm({ initialData }) {
             value={form.property_address}
             onChange={handleChange}
             placeholder="Property Address"
+            required
+          />
+          <FormField
+            label="Zip Code"
+            name="zip_code"
+            value={form.zip_code}
+            onChange={handleChange}
+            placeholder="Zip Code"
             required
           />
           <FormSelect
@@ -158,14 +173,6 @@ export function SubmissionForm({ initialData }) {
             value={form.property_estimated_value}
             onChange={handleChange}
             placeholder="Estimated Property Value"
-            required
-          />
-          <FormField
-            label="Zip Code"
-            name="zip_code"
-            value={form.zip_code}
-            onChange={handleChange}
-            placeholder="Zip Code"
             required
           />
           <FormNumberField
@@ -186,13 +193,13 @@ export function SubmissionForm({ initialData }) {
           />
         </FormSection>
 
-        <FormSection title="Borrower Info">
+        <FormSection title="Borrower Info" largeTitle>
           <FormField
-            label="Business Name"
+            label="Borrower's Business Name"
             name="business_name"
             value={form.business_name}
             onChange={handleChange}
-            placeholder="Business Name"
+            placeholder="Borrower's Business Name"
             required
           />
           <FormField
