@@ -115,10 +115,14 @@ describe("full-submission handler", () => {
       summary: "Needs review",
       confidence: 75,
     });
+    submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
 
     await runHandler();
 
-    expect(submitToPipedrive).not.toHaveBeenCalled();
+    expect(submitToPipedrive).toHaveBeenCalledOnce();
+    expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload, {
+      stageId: 54,
+    });
     expect(sendEmail).toHaveBeenCalledOnce();
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -170,9 +174,14 @@ describe("full-submission handler", () => {
       result: "MANUAL_REVIEW",
       reason: "Needs review",
     });
+    submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
 
     await runHandler({ ...samplePayload, referral_partner_email: "" });
 
+    expect(submitToPipedrive).toHaveBeenCalledWith(
+      { ...samplePayload, referral_partner_email: "" },
+      { stageId: 54 }
+    );
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: [WORKER_EMAIL],

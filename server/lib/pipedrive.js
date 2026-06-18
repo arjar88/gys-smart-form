@@ -9,7 +9,7 @@ import { createLogger } from "./logger.js";
 
 const log = createLogger("pipedrive");
 
-export async function submitToPipedrive(payload) {
+export async function submitToPipedrive(payload, options = {}) {
   const apiToken = process.env.PIPEDRIVE_API_KEY;
   if (!apiToken) throw new Error("PIPEDRIVE_API_KEY is not configured.");
 
@@ -46,7 +46,8 @@ export async function submitToPipedrive(payload) {
     borrowerId,
     organizationId,
     rpId,
-    apiToken
+    apiToken,
+    options.stageId
   );
 
   log.info("Setting Calendly UID and adding deal participant and note in parallel", {

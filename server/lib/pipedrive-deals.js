@@ -4,7 +4,8 @@ import { createLogger } from "./logger.js";
 const log = createLogger("pipedrive-deals");
 const COMPANY_DOMAIN = "gysmortgage";
 const ORIGINATION_PIPELINE_ID = 10;
-const SCHEDULING_A_CALL_STAGE_ID = 56;
+export const SCHEDULING_A_CALL_STAGE_ID = 56;
+export const POTENTIAL_LEAD_STAGE_ID = 54;
 const CALENDLY_UID_FIELD_KEY = "9a5dcb6b0add9b7fdb75fd88c4bc2c0e7cadc5d8";
 
 function getPropertyTypeId(label) {
@@ -42,7 +43,14 @@ function formatMoneyForNote(value) {
   return n.toLocaleString("en-US");
 }
 
-export async function createDeal(payload, borrowerId, organizationId, rpId, apiToken) {
+export async function createDeal(
+  payload,
+  borrowerId,
+  organizationId,
+  rpId,
+  apiToken,
+  stageId = SCHEDULING_A_CALL_STAGE_ID
+) {
   const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/deals?api_token=${apiToken}`;
 
   const dealData = {
@@ -50,7 +58,7 @@ export async function createDeal(payload, borrowerId, organizationId, rpId, apiT
     person_id: borrowerId,
     org_id: organizationId,
     pipeline_id: ORIGINATION_PIPELINE_ID,
-    stage_id: SCHEDULING_A_CALL_STAGE_ID,
+    stage_id: stageId,
     status: "open",
     d903d5c1eb13f0b080d804d8da57d4cef97f5720: rpId,
     "16579d25bd4835bcd26420525830ab4d36632c8a": payload.property_address,
@@ -77,6 +85,7 @@ export async function createDeal(payload, borrowerId, organizationId, rpId, apiT
     borrowerId,
     organizationId,
     rpId,
+    stageId,
     propertyType: payload.property_type,
     propertyTypeId: dealData.db5e38e15d0e3e685800ebf6974f1e6851f21877,
   });

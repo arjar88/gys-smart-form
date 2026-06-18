@@ -51,4 +51,31 @@ describe("createDeal", () => {
     const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
     expect(body.db5e38e15d0e3e685800ebf6974f1e6851f21877).toBe(150);
   });
+
+  it("uses Scheduling a Call stage by default", async () => {
+    await createDeal(
+      { ...basePayload, property_type: "Commercial" },
+      1,
+      2,
+      3,
+      "test-token"
+    );
+
+    const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
+    expect(body.stage_id).toBe(56);
+  });
+
+  it("uses provided stageId when specified", async () => {
+    await createDeal(
+      { ...basePayload, property_type: "Commercial" },
+      1,
+      2,
+      3,
+      "test-token",
+      54
+    );
+
+    const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
+    expect(body.stage_id).toBe(54);
+  });
 });

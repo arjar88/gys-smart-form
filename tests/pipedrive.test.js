@@ -72,7 +72,8 @@ describe("submitToPipedrive", () => {
       202,
       303,
       101,
-      "test-api-token"
+      "test-api-token",
+      undefined
     );
     expect(setCalendlyUid).toHaveBeenCalledWith(40405, "test-api-token");
     expect(addReferralPartnerToDeal).toHaveBeenCalledWith(
@@ -86,6 +87,23 @@ describe("submitToPipedrive", () => {
       "test-api-token"
     );
     expect(result).toEqual({ success: true, dealId: 40405 });
+  });
+
+  it("forwards stageId option to createDeal", async () => {
+    findOrCreateRP.mockResolvedValue(101);
+    findOrCreateBorrower.mockResolvedValue({ personId: 202, orgId: 303 });
+    createDeal.mockResolvedValue(40405);
+
+    await submitToPipedrive(samplePayload, { stageId: 54 });
+
+    expect(createDeal).toHaveBeenCalledWith(
+      samplePayload,
+      202,
+      303,
+      101,
+      "test-api-token",
+      54
+    );
   });
 
   it("throws when PIPEDRIVE_API_KEY is missing", async () => {

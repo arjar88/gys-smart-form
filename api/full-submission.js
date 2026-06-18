@@ -7,6 +7,7 @@ import {
   sendEmail,
 } from "../server/lib/email.js";
 import { submitToPipedrive } from "../server/lib/pipedrive.js";
+import { POTENTIAL_LEAD_STAGE_ID } from "../server/lib/pipedrive-deals.js";
 import { createLogger } from "../server/lib/logger.js";
 
 const log = createLogger("full-submission");
@@ -176,8 +177,18 @@ async function processFullSubmission(payload) {
         action: "pipedrive",
         dealId: pipedriveResult.dealId,
       });
+    } else if (aiResult.result === "MANUAL_REVIEW") {
+      log.info("MANUAL_REVIEW — sending to Pipedrive (Potential lead) and review email");
+      const pipedriveResult = await submitToPipedrive(payload, {
+        stageId: POTENTIAL_LEAD_STAGE_ID,
+      });
+      await sendWorkerReviewEmail(payload, aiResult);
+      log.info("Background processing complete", {
+        action: "pipedrive+resend",
+        dealId: pipedriveResult.dealId,
+      });
     } else {
-      log.info("Not PASS — sending review email via Resend", {
+      log.info("DECLINE — sending review email via Resend", {
         result: aiResult.result,
       });
       await sendWorkerReviewEmail(payload, aiResult);
