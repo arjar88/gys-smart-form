@@ -17,6 +17,24 @@ let mutationObserver = null;
 let rafId = 0;
 let lastSentHeight = 0;
 
+/**
+ * Enable verbose console logging by adding `?embedDebug=1` to the form URL or
+ * setting `window.GYS_EMBED_DEBUG = true`. Useful for diagnosing the Wix bridge
+ * from the live site without shipping noisy logs to everyone.
+ */
+function isDebug() {
+  if (window.GYS_EMBED_DEBUG) return true;
+  try {
+    return new URLSearchParams(window.location.search).get("embedDebug") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function debugLog(...args) {
+  if (isDebug()) console.log("[gys-embed]", ...args);
+}
+
 function isEmbedded() {
   try {
     return window.self !== window.top;
@@ -48,10 +66,9 @@ function getParentOrigin() {
 
 function postToParent(message) {
   if (!isEmbedded()) return;
-  window.parent.postMessage(
-    { source: EMBED_SOURCE, ...message },
-    getParentOrigin()
-  );
+  const payload = { source: EMBED_SOURCE, ...message };
+  debugLog("postMessage ->", getParentOrigin(), payload);
+  window.parent.postMessage(payload, getParentOrigin());
 }
 
 /**
@@ -107,8 +124,12 @@ export function scrollParentToTop() {
  * Returns a cleanup function. No-op (other than cleanup) when not embedded.
  */
 export function initEmbedBridge() {
-  if (!isEmbedded()) return () => {};
+  if (!isEmbedded()) {
+    debugLog("not embedded (top-level window); bridge inactive");
+    return () => {};
+  }
 
+  debugLog("bridge active; parent origin =", getParentOrigin());
   scheduleReport();
 
   if (typeof ResizeObserver !== "undefined") {
