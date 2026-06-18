@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LandingView } from "./stages/LandingView";
 import { RejectionView } from "./stages/RejectionView";
 import { Screener } from "./stages/Screener";
 import { SubmissionForm } from "./stages/SubmissionForm";
+import { initEmbedBridge, scrollParentToTop } from "./utils/embed";
 
 const HASH_BY_STAGE = {
   landing: "",
@@ -30,6 +31,17 @@ export default function App() {
   const [stage, setStage] = useState(() => hashToStage(window.location.hash));
   const [formData, setFormData] = useState({});
   const [rejectionReason, setRejectionReason] = useState("");
+  const isFirstStageRender = useRef(true);
+
+  useEffect(() => initEmbedBridge(), []);
+
+  useEffect(() => {
+    if (isFirstStageRender.current) {
+      isFirstStageRender.current = false;
+      return;
+    }
+    scrollParentToTop();
+  }, [stage]);
 
   const navigateToStage = useCallback((newStage) => {
     setStage(newStage);
