@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "League Spartan", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Libre Baskerville", Georgia, serif;
   --color-gys-form-bg: #eef1f5;
   --color-gys-input-border: #d8dee6;
@@ -10,6 +10,17 @@
   --color-gys-primary: #1a6cf0;
   --color-gys-primary-hover: #1558c7;
   --color-gys-required: #e53935;
+  --color-gys-navy: #131e3d;
+  --color-gys-navy-deep: #0e162c;
+  --color-gys-footer: #0a1120;
+  --color-gys-cream: #f4f1ec;
+  --color-gys-gold: #e0c4a1;
+  --color-gys-gold-light: #ebd9c1;
+  --color-gys-card-cream: #f7f3ed;
+  --color-gys-testimonial: #f9f7f2;
+  --color-gys-form-tan: #f2e3d5;
+  --color-gys-muted: #6e6e6e;
+  --color-gys-brown: #8b614f;
 }
 
 *,
@@ -27,7 +38,7 @@ body,
 
 body {
   font-family: var(--font-sans);
-  background: transparent;
+  background: var(--color-gys-cream);
   color: var(--color-gys-label);
   -webkit-font-smoothing: antialiased;
 }
@@ -73,4 +84,23 @@ textarea {
 
 .gys-phone-input .PhoneInputInput:focus {
   outline: none;
+}
+
+.contact-form .gys-phone-input {
+  border-color: transparent;
+}
+
+.contact-form .gys-phone-input .PhoneInputCountry {
+  border-right-color: rgb(0 0 0 / 0.08);
+}
+
+.contact-form label {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.gys-form-page {
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  background: white;
+  color: var(--color-gys-label);
 }

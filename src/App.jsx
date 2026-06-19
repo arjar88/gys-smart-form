@@ -1,14 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
+import { FormPageLayout } from "./components/FormPageLayout";
 import { LandingView } from "./stages/LandingView";
 import { RejectionView } from "./stages/RejectionView";
 import { Screener } from "./stages/Screener";
 import { SubmissionForm } from "./stages/SubmissionForm";
+import { WebsiteView } from "./stages/WebsiteView";
 
-const HASH_BY_STAGE = {
-  landing: "",
-  screener: "#quick-review",
-  form: "#full-submission",
-  rejected: "#rejected",
+const PATH_BY_STAGE = {
+  landing: "/submission",
+  screener: "/quick-review",
+  form: "/full-submission",
+  rejected: "/rejected",
+  website: "/",
+};
+
+const STAGE_BY_PATH = {
+  "/": "website",
+  "/submission": "landing",
+  "/quick-review": "screener",
+  "/full-submission": "form",
+  "/rejected": "rejected",
 };
 
 const STAGE_BY_HASH = {
@@ -17,17 +28,22 @@ const STAGE_BY_HASH = {
   rejected: "rejected",
 };
 
-function hashToStage(hash) {
-  const key = hash.replace(/^#/, "");
-  return STAGE_BY_HASH[key] ?? "landing";
+function locationToStage() {
+  const hashKey = window.location.hash.replace(/^#/, "");
+  if (STAGE_BY_HASH[hashKey]) {
+    return STAGE_BY_HASH[hashKey];
+  }
+
+  const path = window.location.pathname.replace(/\/$/, "") || "/";
+  return STAGE_BY_PATH[path] ?? "landing";
 }
 
 function stageToUrl(stage) {
-  return `${window.location.pathname}${window.location.search}${HASH_BY_STAGE[stage] ?? ""}`;
+  return PATH_BY_STAGE[stage] ?? "/";
 }
 
 export default function App() {
-  const [stage, setStage] = useState(() => hashToStage(window.location.hash));
+  const [stage, setStage] = useState(() => locationToStage());
   const [formData, setFormData] = useState({});
   const [rejectionReason, setRejectionReason] = useState("");
 
@@ -37,12 +53,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    window.history.replaceState({ stage }, "", stageToUrl(stage));
+    const initialStage = locationToStage();
+    setStage(initialStage);
+    window.history.replaceState({ stage: initialStage }, "", stageToUrl(initialStage));
   }, []);
 
   useEffect(() => {
     function handlePopState(event) {
-      const newStage = event.state?.stage ?? hashToStage(window.location.hash);
+      const newStage = event.state?.stage ?? locationToStage();
       setStage(newStage);
     }
 
@@ -73,22 +91,43 @@ export default function App() {
 
   if (stage === "landing") {
     return (
-      <LandingView
-        onQuickReview={() => navigateToStage("screener")}
+      <FormPageLayout>
+        <LandingView
+          onQuickReview={() => navigateToStage("screener")}
+          onFullSubmission={() => navigateToStage("form")}
+        />
+      </FormPageLayout>
+    );
+  }
+
+  if (stage === "website") {
+    return (
+      <WebsiteView
+        onQuickReview={() => navigateToStage("landing")}
         onFullSubmission={() => navigateToStage("form")}
       />
     );
   }
 
   if (stage === "form") {
-    return <SubmissionForm initialData={formData} />;
+    return (
+      <FormPageLayout>
+        <SubmissionForm initialData={formData} />
+      </FormPageLayout>
+    );
   }
 
   if (stage === "rejected") {
     return (
-      <RejectionView reason={rejectionReason} onTryAgain={handleTryAgain} />
+      <FormPageLayout>
+        <RejectionView reason={rejectionReason} onTryAgain={handleTryAgain} />
+      </FormPageLayout>
     );
   }
 
-  return <Screener onPass={handlePass} onFail={handleFail} />;
+  return (
+    <FormPageLayout>
+      <Screener onPass={handlePass} onFail={handleFail} />
+    </FormPageLayout>
+  );
 }
