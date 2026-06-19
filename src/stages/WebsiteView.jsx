@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { FormPhoneInput } from "../components/FormPhoneInput";
+import { LogoMark } from "../components/LogoMark";
+import { SiteHeader } from "../components/SiteHeader";
 
 const CALENDLY_URL = "https://calendly.com/gabriel-gysmortgage/30min";
-const LOGO_URL =
-  "https://static.wixstatic.com/media/7ee68f_97705f93484f49b892bcd336a22cb144~mv2.png/v1/fill/w_500,h_163,al_c,q_85,enc_avif,quality_auto/GYS.png";
 const TESTIMONIALS_BG_URL =
   "https://static.wixstatic.com/media/11062b_6ca2b81a96324a81b4be0388bbe57197~mv2.jpg/v1/fill/w_1800,h_1200,al_c,q_85,enc_avif,quality_auto/11062b_6ca2b81a96324a81b4be0388bbe57197~mv2.jpg";
 
@@ -79,18 +79,6 @@ const testimonials = [
     author: "George Foster, CA",
   },
 ];
-
-function LogoMark({ light = false, href = "/" }) {
-  return (
-    <a href={href} className="inline-block shrink-0" aria-label="GYS Mortgage home">
-      <img
-        src={LOGO_URL}
-        alt="GYS Mortgage"
-        className={`h-auto w-36 sm:w-40 ${light ? "brightness-0 invert" : ""}`}
-      />
-    </a>
-  );
-}
 
 function PillButton({ children, variant = "gold", onClick, href, className = "" }) {
   const styles =
@@ -391,22 +379,7 @@ function ContactForm() {
 export function WebsiteView({ onQuickReview, onFullSubmission }) {
   return (
     <div className="min-h-screen bg-gys-cream text-gys-label">
-      <header className="fixed inset-x-0 top-0 z-40 bg-gys-navy/95 text-white backdrop-blur">
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between px-6 py-4 sm:px-10">
-          <LogoMark light />
-          <div className="flex items-center gap-3">
-            <a
-              href="#programs"
-              className="hidden text-sm uppercase tracking-[0.16em] text-white/75 transition hover:text-gys-gold sm:inline"
-            >
-              Programs
-            </a>
-            <ArrowButton href={CALENDLY_URL} variant="outline">
-              Book a Consultation
-            </ArrowButton>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main>
         <section className="relative flex min-h-screen items-center overflow-hidden bg-gys-navy px-6 pb-24 pt-32 text-white sm:px-10">
@@ -622,8 +595,7 @@ export function WebsiteView({ onQuickReview, onFullSubmission }) {
                 gabriel@gysmortgage.com
               </a>
             </p>
-            <p>500 East Broward Boulevard, Suite</p>
-            <p>900</p>
+            <p>500 East Broward Boulevard, Suite 900</p>
             <p>Fort Lauderdale, FL 33394</p>
           </div>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm">

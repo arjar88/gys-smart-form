@@ -104,3 +104,13 @@ textarea {
   background: white;
   color: var(--color-gys-label);
 }
+
+.gys-legal-page {
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+  text-align: left;
+}
+
+.gys-legal-page h1 {
+  font-family: var(--font-serif);
+}

@@ -3,7 +3,9 @@ import { FormPageLayout } from "./components/FormPageLayout";
 import { LandingView } from "./stages/LandingView";
 import { RejectionView } from "./stages/RejectionView";
 import { Screener } from "./stages/Screener";
+import { PrivacyPolicyView } from "./stages/PrivacyPolicyView";
 import { SubmissionForm } from "./stages/SubmissionForm";
+import { TermsDisclaimerView } from "./stages/TermsDisclaimerView";
 import { WebsiteView } from "./stages/WebsiteView";
 
 const PATH_BY_STAGE = {
@@ -12,6 +14,8 @@ const PATH_BY_STAGE = {
   form: "/full-submission",
   rejected: "/rejected",
   website: "/",
+  privacyPolicy: "/privacy-policy",
+  termsDisclaimer: "/terms-disclaimer",
 };
 
 const STAGE_BY_PATH = {
@@ -20,6 +24,8 @@ const STAGE_BY_PATH = {
   "/quick-review": "screener",
   "/full-submission": "form",
   "/rejected": "rejected",
+  "/privacy-policy": "privacyPolicy",
+  "/terms-disclaimer": "termsDisclaimer",
 };
 
 const STAGE_BY_HASH = {
@@ -107,6 +113,14 @@ export default function App() {
         onFullSubmission={() => navigateToStage("form")}
       />
     );
+  }
+
+  if (stage === "privacyPolicy") {
+    return <PrivacyPolicyView />;
+  }
+
+  if (stage === "termsDisclaimer") {
+    return <TermsDisclaimerView />;
   }
 
   if (stage === "form") {
