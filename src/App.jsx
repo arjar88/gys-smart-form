@@ -126,7 +126,10 @@ export default function App() {
   if (stage === "form") {
     return (
       <FormPageLayout>
-        <SubmissionForm initialData={formData} />
+        <SubmissionForm
+          initialData={formData}
+          onBack={() => navigateToStage("landing")}
+        />
       </FormPageLayout>
     );
   }
@@ -141,7 +144,11 @@ export default function App() {
 
   return (
     <FormPageLayout>
-      <Screener onPass={handlePass} onFail={handleFail} />
+      <Screener
+        onPass={handlePass}
+        onFail={handleFail}
+        onBack={() => navigateToStage("landing")}
+      />
     </FormPageLayout>
   );
 }

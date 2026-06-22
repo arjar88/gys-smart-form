@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FormContainer } from "../components/FormContainer";
 import { FormField } from "../components/FormField";
 import { FormNumberField } from "../components/FormNumberField";
@@ -32,7 +32,7 @@ const STAGE2_FIELDS = {
   notes: "",
 };
 
-export function SubmissionForm({ initialData }) {
+export function SubmissionForm({ initialData, onBack }) {
   const [form, setForm] = useState(
     formatNumericFields({ ...STAGE2_FIELDS, ...initialData })
   );
@@ -61,9 +61,15 @@ export function SubmissionForm({ initialData }) {
     }).catch((err) => console.error("Submission error:", err));
   }
 
+  useEffect(() => {
+    if (submitted) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [submitted]);
+
   if (submitted) {
     return (
-      <FormContainer title="Submission Received" centerTitle>
+      <FormContainer title="Submission Received" centerTitle onBack={onBack}>
         <p className="text-center text-[15px] leading-relaxed text-gys-label/90">
           Thank you for submitting your deal, check your inbox for next steps — if
           you would like to edit your submission, reach out to{" "}
@@ -82,6 +88,7 @@ export function SubmissionForm({ initialData }) {
     <FormContainer
       title="File Submission Form"
       centerTitle
+      onBack={onBack}
       footer={
         <div className="mt-8 flex flex-col items-end gap-3">
           {error && (

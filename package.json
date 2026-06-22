@@ -25,6 +25,8 @@
     "vitest": "^4.1.8"
   },
   "vitest": {
-    "include": ["tests/**/*.test.js"]
+    "include": [
+      "tests/**/*.test.js"
+    ]
   }
 }

@@ -19,7 +19,7 @@ const INITIAL = {
   referral_partner_number: "",
 };
 
-export function Screener({ onPass, onFail }) {
+export function Screener({ onPass, onFail, onBack }) {
   const [form, setForm] = useState(INITIAL);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -93,6 +93,7 @@ export function Screener({ onPass, onFail }) {
     )}
     <FormContainer
       title="Quick Deal Review"
+      onBack={onBack}
       footer={
         <div className="mt-8 flex flex-col items-end gap-3">
           {error && (
