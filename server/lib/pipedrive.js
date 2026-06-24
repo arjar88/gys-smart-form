@@ -4,6 +4,7 @@ import {
   setCalendlyUid,
   addReferralPartnerToDeal,
   addDealNote,
+  setSubmissionNoteId,
 } from "./pipedrive-deals.js";
 import { createLogger } from "./logger.js";
 
@@ -50,14 +51,19 @@ export async function submitToPipedrive(payload, options = {}) {
     options.stageId
   );
 
-  log.info("Setting Calendly UID and adding deal participant and note in parallel", {
+  log.info("Setting Calendly UID and adding deal participant and note", {
     dealId,
   });
-  await Promise.all([
+  const [noteId] = await Promise.all([
+    addDealNote(payload, dealId, apiToken, options.reviewBreakdown || []),
     setCalendlyUid(dealId, apiToken),
     addReferralPartnerToDeal(dealId, rpId, apiToken),
-    addDealNote(payload, dealId, apiToken),
   ]);
+
+  if (noteId) {
+    log.info("Saving Submission Note ID to deal", { dealId, noteId });
+    await setSubmissionNoteId(dealId, noteId, apiToken);
+  }
 
   log.info("Pipedrive submission complete", {
     dealId,

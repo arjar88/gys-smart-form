@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatAiReviewDetails, formatPropertyDetails } from "../server/lib/email.js";
+import {
+  formatAiReviewDetails,
+  formatPropertyDetails,
+  formatReviewBreakdown,
+} from "../server/lib/email.js";
 
 describe("formatPropertyDetails", () => {
   it("formats all property fields including zip code", () => {
@@ -34,6 +38,53 @@ describe("formatPropertyDetails", () => {
     expect(result).toContain("Value: $0");
     expect(result).toContain("Debt: $0");
     expect(result).toContain("Property Type: N/A");
+  });
+
+  it("includes additional properties when provided", () => {
+    const result = formatPropertyDetails({
+      property_address: "123 Main St",
+      zip_code: "10001",
+      property_estimated_value: "500000",
+      debt_on_property: "100000",
+      property_type: "Commercial",
+      additional_properties: [
+        {
+          property_address: "456 Oak Ave",
+          zip_code: "10002",
+          property_estimated_value: "750000",
+          debt_on_property: "200000",
+          property_type: "Multifamily",
+          loan_amount_request: "400000",
+        },
+      ],
+    });
+
+    expect(result).toContain("Additional Properties (1):");
+    expect(result).toContain("Property 2: 456 Oak Ave");
+    expect(result).toContain("Loan Amount Requested: $400,000");
+  });
+});
+
+describe("formatReviewBreakdown", () => {
+  it("formats flagged properties with label, address, and reason", () => {
+    const result = formatReviewBreakdown([
+      {
+        label: "Property 2",
+        address: "456 Oak Ave",
+        result: "MANUAL_REVIEW",
+        reason: "Limited available equity",
+      },
+    ]);
+
+    expect(result).toBe(
+      "Property 2 (456 Oak Ave): Limited available equity"
+    );
+  });
+
+  it("returns fallback when no flagged properties are provided", () => {
+    expect(formatReviewBreakdown([])).toBe(
+      "No specific property details available."
+    );
   });
 });
 

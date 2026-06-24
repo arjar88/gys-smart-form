@@ -10,6 +10,7 @@ vi.mock("../server/lib/pipedrive-deals.js", () => ({
   setCalendlyUid: vi.fn(),
   addReferralPartnerToDeal: vi.fn(),
   addDealNote: vi.fn(),
+  setSubmissionNoteId: vi.fn(),
 }));
 
 import { submitToPipedrive } from "../server/lib/pipedrive.js";
@@ -19,6 +20,7 @@ import {
   setCalendlyUid,
   addReferralPartnerToDeal,
   addDealNote,
+  setSubmissionNoteId,
 } from "../server/lib/pipedrive-deals.js";
 
 const samplePayload = {
@@ -50,6 +52,7 @@ describe("submitToPipedrive", () => {
     findOrCreateRP.mockResolvedValue(101);
     findOrCreateBorrower.mockResolvedValue({ personId: 202, orgId: 303 });
     createDeal.mockResolvedValue(40405);
+    addDealNote.mockResolvedValue(12345);
 
     const result = await submitToPipedrive(samplePayload);
 
@@ -84,8 +87,10 @@ describe("submitToPipedrive", () => {
     expect(addDealNote).toHaveBeenCalledWith(
       samplePayload,
       40405,
-      "test-api-token"
+      "test-api-token",
+      []
     );
+    expect(setSubmissionNoteId).toHaveBeenCalledWith(40405, 12345, "test-api-token");
     expect(result).toEqual({ success: true, dealId: 40405 });
   });
 
@@ -103,6 +108,33 @@ describe("submitToPipedrive", () => {
       101,
       "test-api-token",
       54
+    );
+  });
+
+  it("forwards reviewBreakdown to addDealNote", async () => {
+    findOrCreateRP.mockResolvedValue(101);
+    findOrCreateBorrower.mockResolvedValue({ personId: 202, orgId: 303 });
+    createDeal.mockResolvedValue(40405);
+
+    const reviewBreakdown = [
+      {
+        label: "Property 2",
+        address: "789 Pine Rd",
+        result: "MANUAL_REVIEW",
+        reason: "Limited available equity",
+      },
+    ];
+
+    await submitToPipedrive(samplePayload, {
+      stageId: 54,
+      reviewBreakdown,
+    });
+
+    expect(addDealNote).toHaveBeenCalledWith(
+      samplePayload,
+      40405,
+      "test-api-token",
+      reviewBreakdown
     );
   });
 

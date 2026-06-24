@@ -122,6 +122,14 @@ describe("full-submission handler", () => {
     expect(submitToPipedrive).toHaveBeenCalledOnce();
     expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload, {
       stageId: 54,
+      reviewBreakdown: [
+        {
+          label: "Property 1",
+          address: "456 Oak Ave",
+          result: "MANUAL_REVIEW",
+          reason: "Special asset type",
+        },
+      ],
     });
     expect(sendEmail).toHaveBeenCalledOnce();
     expect(sendEmail).toHaveBeenCalledWith(
@@ -131,31 +139,49 @@ describe("full-submission handler", () => {
         subject: "GYS Mortgage — Deal Submission Under Review",
       })
     );
+    expect(sendEmail.mock.calls[0][0].text).toContain(
+      "The following property requires review:"
+    );
+    expect(sendEmail.mock.calls[0][0].text).toContain(
+      "Property 1 (456 Oak Ave): Special asset type"
+    );
     expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
     expect(sendEmail.mock.calls[0][0].text).toContain("John Borrower");
   });
 
-  it("sends decline email to RP and CCs borrower on DECLINE", async () => {
+  it("routes DECLINE to potential lead and review email instead of email-only", async () => {
     callOpenAI.mockResolvedValue({
       result: "DECLINE",
       reason: "Primary residence",
       summary: "Not eligible",
       confidence: 99,
     });
+    submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
 
     await runHandler();
 
-    expect(submitToPipedrive).not.toHaveBeenCalled();
+    expect(submitToPipedrive).toHaveBeenCalledOnce();
+    expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload, {
+      stageId: 54,
+      reviewBreakdown: [
+        {
+          label: "Property 1",
+          address: "456 Oak Ave",
+          result: "DECLINE",
+          reason: "Primary residence",
+        },
+      ],
+    });
     expect(sendEmail).toHaveBeenCalledOnce();
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: ["jane@example.com"],
         cc: ["john@example.com"],
-        subject: "GYS Mortgage — Deal Submission Update",
-        text: expect.stringContaining("unable to move forward"),
+        subject: "GYS Mortgage — Deal Submission Under Review",
+        text: expect.stringContaining("Property 1 (456 Oak Ave): Primary residence"),
       })
     );
-    expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
+    expect(sendEmail.mock.calls[0][0].text).not.toContain("unable to move forward");
   });
 
   it("does not pass loan_amount_request to OpenAI", async () => {
@@ -180,7 +206,17 @@ describe("full-submission handler", () => {
 
     expect(submitToPipedrive).toHaveBeenCalledWith(
       { ...samplePayload, referral_partner_email: "" },
-      { stageId: 54 }
+      {
+        stageId: 54,
+        reviewBreakdown: [
+          {
+            label: "Property 1",
+            address: "456 Oak Ave",
+            result: "MANUAL_REVIEW",
+            reason: "Needs review",
+          },
+        ],
+      }
     );
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -188,5 +224,74 @@ describe("full-submission handler", () => {
         cc: ["john@example.com"],
       })
     );
+  });
+
+  it("screens each property and passes when all properties pass", async () => {
+    callOpenAI
+      .mockResolvedValueOnce({ result: "PASS", summary: "Approved" })
+      .mockResolvedValueOnce({ result: "PASS", summary: "Approved" });
+    submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
+
+    const payloadWithAdditional = {
+      ...samplePayload,
+      additional_properties: [
+        {
+          property_address: "789 Pine Rd",
+          zip_code: "10003",
+          property_type: "Commercial",
+          property_estimated_value: "900000",
+          debt_on_property: "150000",
+          loan_amount_request: "500000",
+        },
+      ],
+    };
+
+    await runHandler(payloadWithAdditional);
+
+    expect(callOpenAI).toHaveBeenCalledTimes(2);
+    expect(submitToPipedrive).toHaveBeenCalledWith(payloadWithAdditional);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("routes to manual review when one additional property is flagged", async () => {
+    callOpenAI
+      .mockResolvedValueOnce({ result: "PASS", summary: "Approved" })
+      .mockResolvedValueOnce({
+        result: "MANUAL_REVIEW",
+        reason: "Limited available equity",
+      });
+    submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
+
+    const payloadWithAdditional = {
+      ...samplePayload,
+      additional_properties: [
+        {
+          property_address: "789 Pine Rd",
+          zip_code: "10003",
+          property_type: "Commercial",
+          property_estimated_value: "900000",
+          debt_on_property: "150000",
+          loan_amount_request: "500000",
+        },
+      ],
+    };
+
+    await runHandler(payloadWithAdditional);
+
+    expect(submitToPipedrive).toHaveBeenCalledWith(payloadWithAdditional, {
+      stageId: 54,
+      reviewBreakdown: [
+        {
+          label: "Property 2",
+          address: "789 Pine Rd",
+          result: "MANUAL_REVIEW",
+          reason: "Limited available equity",
+        },
+      ],
+    });
+    expect(sendEmail.mock.calls[0][0].text).toContain(
+      "Property 2 (789 Pine Rd): Limited available equity"
+    );
+    expect(sendEmail.mock.calls[0][0].text).toContain("Additional Properties (1):");
   });
 });

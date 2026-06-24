@@ -7,6 +7,7 @@ const ORIGINATION_PIPELINE_ID = 10;
 export const SCHEDULING_A_CALL_STAGE_ID = 56;
 export const POTENTIAL_LEAD_STAGE_ID = 54;
 const CALENDLY_UID_FIELD_KEY = "9a5dcb6b0add9b7fdb75fd88c4bc2c0e7cadc5d8";
+const SUBMISSION_NOTE_ID_FIELD_KEY = "47b5f017160cbae79caa4bcaa0c778f8637ea380";
 
 function getPropertyTypeId(label) {
   const map = {
@@ -41,6 +42,46 @@ function formatMoneyForNote(value) {
   const n = Number(String(value).replace(/,/g, ""));
   if (Number.isNaN(n)) return String(value);
   return n.toLocaleString("en-US");
+}
+
+function formatAdditionalPropertiesForNote(additionalProperties) {
+  if (!Array.isArray(additionalProperties) || additionalProperties.length === 0) {
+    return "";
+  }
+
+  const sections = additionalProperties.map((property, index) => {
+    const propertyNumber = index + 2;
+    return `PROPERTY ${propertyNumber}
+Property Address: ${property.property_address || "N/A"}
+Property Estimated Value: $${formatMoneyForNote(property.property_estimated_value)}
+Debt on Property: $${formatMoneyForNote(property.debt_on_property)}
+Property Type: ${property.property_type || "N/A"}
+Loan Amount Requested: $${formatMoneyForNote(property.loan_amount_request)}
+Zip Code: ${property.zip_code || "N/A"}`;
+  });
+
+  return `
+
+--- ADDITIONAL PROPERTIES (${additionalProperties.length}) ---
+
+${sections.join("\n\n")}`;
+}
+
+function formatReviewBreakdownForNote(reviewBreakdown) {
+  if (!Array.isArray(reviewBreakdown) || reviewBreakdown.length === 0) {
+    return "";
+  }
+
+  const lines = reviewBreakdown.map(
+    (item) =>
+      `${item.label} (${item.address || "N/A"}): ${item.reason || "Requires manual review."}`
+  );
+
+  return `
+
+--- PROPERTIES NEEDING REVIEW (${reviewBreakdown.length}) ---
+
+${lines.join("\n\n")}`;
 }
 
 export async function createDeal(
@@ -122,6 +163,24 @@ export async function setCalendlyUid(dealId, apiToken) {
   log.info("Calendly UID set", { dealId });
 }
 
+export async function setSubmissionNoteId(dealId, noteId, apiToken) {
+  const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/deals/${dealId}?api_token=${apiToken}`;
+
+  log.info("Setting Submission Note ID", { dealId, noteId });
+
+  const { ok } = await pipedriveRequest("setSubmissionNoteId", url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ [SUBMISSION_NOTE_ID_FIELD_KEY]: String(noteId) }),
+  });
+
+  if (!ok) {
+    throw new Error("Failed to set Submission Note ID on deal");
+  }
+
+  log.info("Submission Note ID set", { dealId, noteId });
+}
+
 export async function addReferralPartnerToDeal(dealId, rpId, apiToken) {
   if (!rpId) {
     log.info("Skipping deal participant — no referral partner id", { dealId });
@@ -143,7 +202,12 @@ export async function addReferralPartnerToDeal(dealId, rpId, apiToken) {
   log.info("Added referral partner to deal", { dealId, rpId });
 }
 
-export async function addDealNote(payload, dealId, apiToken) {
+export async function addDealNote(
+  payload,
+  dealId,
+  apiToken,
+  reviewBreakdown = []
+) {
   const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/notes?api_token=${apiToken}`;
 
   const noteData = {
@@ -167,20 +231,22 @@ Loan Amount Requested: $${formatMoneyForNote(payload.loan_amount_request)}
 Zip Code: ${payload.zip_code || "N/A"}
 Relationship With Borrower: ${payload.relationship_with_borrower || "N/A"}
 
-Notes: ${payload.notes || "N/A"}`,
+Notes: ${payload.notes || "N/A"}${formatAdditionalPropertiesForNote(payload.additional_properties)}${formatReviewBreakdownForNote(reviewBreakdown)}`,
   };
 
   log.info("Adding deal note", { dealId });
 
-  const { ok } = await pipedriveRequest("addDealNote", url, {
+  const { ok, data } = await pipedriveRequest("addDealNote", url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(noteData),
   });
 
-  if (!ok) {
+  if (!ok || !data?.data?.id) {
     throw new Error("Failed to add deal note");
   }
 
-  log.info("Deal note added", { dealId });
+  const noteId = data.data.id;
+  log.info("Deal note added", { dealId, noteId });
+  return noteId;
 }

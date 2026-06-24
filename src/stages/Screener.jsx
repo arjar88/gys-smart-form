@@ -19,8 +19,17 @@ const INITIAL = {
   referral_partner_number: "",
 };
 
+const EMPTY_PROPERTY = {
+  property_address: "",
+  zip_code: "",
+  property_type: "",
+  property_estimated_value: "",
+  debt_on_property: "",
+};
+
 export function Screener({ onPass, onFail, onBack }) {
   const [form, setForm] = useState(INITIAL);
+  const [additionalProperties, setAdditionalProperties] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassModal, setShowPassModal] = useState(false);
@@ -31,16 +40,41 @@ export function Screener({ onPass, onFail, onBack }) {
     setError("");
   }
 
+  function addProperty() {
+    setAdditionalProperties((prev) => [...prev, { ...EMPTY_PROPERTY }]);
+  }
+
+  function removeProperty(index) {
+    setAdditionalProperties((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handlePropertyChange(index) {
+    return (event) => {
+      const { name, value } = event.target;
+      setAdditionalProperties((prev) =>
+        prev.map((property, i) =>
+          i === index ? { ...property, [name]: value } : property
+        )
+      );
+      setError("");
+    };
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setLoading(true);
     setError("");
 
+    const submitPayload = {
+      ...form,
+      additional_properties: additionalProperties,
+    };
+
     try {
       const response = await fetch("/api/quick-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(submitPayload),
       });
 
       const result = await response.json();
@@ -53,7 +87,7 @@ export function Screener({ onPass, onFail, onBack }) {
         setShowPassModal(true);
       } else {
         onFail(
-          form,
+          submitPayload,
           result.reason ||
             "Your submission did not meet our initial lending criteria."
         );
@@ -67,7 +101,7 @@ export function Screener({ onPass, onFail, onBack }) {
 
   function handleContinueToFullSubmission() {
     setShowPassModal(false);
-    onPass(form);
+    onPass({ ...form, additional_properties: additionalProperties });
   }
 
   return (
@@ -156,6 +190,72 @@ export function Screener({ onPass, onFail, onBack }) {
             required
           />
         </FormSection>
+
+        {additionalProperties.map((property, index) => (
+          <FormSection key={index} title={`Property ${index + 2}`}>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => removeProperty(index)}
+                className="text-sm font-medium text-red-600 hover:text-red-700"
+              >
+                Remove
+              </button>
+            </div>
+            <FormField
+              label="Property Address"
+              name="property_address"
+              value={property.property_address}
+              onChange={handlePropertyChange(index)}
+              placeholder="Property Address"
+              required
+            />
+            <FormField
+              label="Zip Code"
+              name="zip_code"
+              value={property.zip_code}
+              onChange={handlePropertyChange(index)}
+              placeholder="Zip Code"
+              required
+            />
+            <FormSelect
+              label="Property Type"
+              name="property_type"
+              value={property.property_type}
+              onChange={handlePropertyChange(index)}
+              options={PROPERTY_TYPE_OPTIONS}
+              placeholder="Property Type"
+              required
+            />
+            <FormNumberField
+              label="Estimated Property Value"
+              name="property_estimated_value"
+              value={property.property_estimated_value}
+              onChange={handlePropertyChange(index)}
+              placeholder="Estimated Property Value"
+              required
+            />
+            <FormNumberField
+              label="Current Debt on Property"
+              name="debt_on_property"
+              value={property.debt_on_property}
+              onChange={handlePropertyChange(index)}
+              placeholder="Current Debt on Property"
+              required
+            />
+          </FormSection>
+        ))}
+
+        <div className="mb-8">
+          <button
+            type="button"
+            onClick={addProperty}
+            className="inline-flex items-center gap-2 rounded-md border border-gys-primary px-4 py-2.5 text-[15px] font-medium text-gys-primary transition-colors hover:bg-gys-primary/5"
+          >
+            <span aria-hidden="true">+</span>
+            Add another property
+          </button>
+        </div>
 
         <FormSection title="Referral Partner Info">
           <FormField

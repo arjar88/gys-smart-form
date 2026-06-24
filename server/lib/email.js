@@ -24,7 +24,42 @@ export function formatPropertyDetails(payload) {
     `Debt: ${formatMoney(payload.debt_on_property)}`,
     `Property Type: ${payload.property_type || "N/A"}`
   );
+
+  if (
+    Array.isArray(payload.additional_properties) &&
+    payload.additional_properties.length > 0
+  ) {
+    lines.push(
+      "",
+      `Additional Properties (${payload.additional_properties.length}):`
+    );
+
+    payload.additional_properties.forEach((property, index) => {
+      lines.push(
+        `Property ${index + 2}: ${property.property_address || "N/A"}`,
+        `  Zip Code: ${property.zip_code || "N/A"}`,
+        `  Value: ${formatMoney(property.property_estimated_value)}`,
+        `  Debt: ${formatMoney(property.debt_on_property)}`,
+        `  Property Type: ${property.property_type || "N/A"}`,
+        `  Loan Amount Requested: ${formatMoney(property.loan_amount_request)}`
+      );
+    });
+  }
+
   return lines.join("\n");
+}
+
+export function formatReviewBreakdown(flagged) {
+  if (!Array.isArray(flagged) || flagged.length === 0) {
+    return "No specific property details available.";
+  }
+
+  return flagged
+    .map(
+      (item) =>
+        `${item.label} (${item.address || "N/A"}): ${item.reason || "Requires manual review."}`
+    )
+    .join("\n\n");
 }
 
 export function formatAiReviewDetails(aiResult) {

@@ -5,7 +5,7 @@ vi.mock("../server/lib/pipedrive-request.js", () => ({
 }));
 
 import { pipedriveRequest } from "../server/lib/pipedrive-request.js";
-import { createDeal } from "../server/lib/pipedrive-deals.js";
+import { addDealNote, createDeal, setSubmissionNoteId } from "../server/lib/pipedrive-deals.js";
 
 const basePayload = {
   business_name: "Acme LLC",
@@ -77,5 +77,114 @@ describe("createDeal", () => {
 
     const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
     expect(body.stage_id).toBe(54);
+  });
+});
+
+const notePayload = {
+  borrower_name: "John Borrower",
+  borrower_phone: "+15559876543",
+  borrower_email: "john@example.com",
+  business_name: "Acme LLC",
+  referral_partner_name: "Jane RP",
+  referral_partner_number: "+15551234567",
+  referral_partner_email: "jane@example.com",
+  property_address: "123 Main St",
+  property_estimated_value: "500000",
+  debt_on_property: "100000",
+  loan_amount_request: "300000",
+  zip_code: "10001",
+  property_type: "Commercial",
+  relationship_with_borrower: "We are tight",
+  notes: "Primary note",
+};
+
+describe("addDealNote", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pipedriveRequest.mockResolvedValue({
+      ok: true,
+      data: { data: { id: 12345 } },
+    });
+  });
+
+  it("creates a note without additional properties section when none are provided and returns note id", async () => {
+    const noteId = await addDealNote(notePayload, 999, "test-token");
+
+    expect(noteId).toBe(12345);
+    const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
+    expect(body.deal_id).toBe(999);
+    expect(body.content).toContain("Property Address: 123 Main St");
+    expect(body.content).not.toContain("ADDITIONAL PROPERTIES");
+  });
+
+  it("appends additional properties to the same deal note", async () => {
+    await addDealNote(
+      {
+        ...notePayload,
+        additional_properties: [
+          {
+            property_address: "456 Oak Ave",
+            zip_code: "10002",
+            property_type: "Multifamily",
+            property_estimated_value: "750000",
+            debt_on_property: "200000",
+            loan_amount_request: "400000",
+          },
+        ],
+      },
+      999,
+      "test-token"
+    );
+
+    const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
+    expect(body.content).toContain("--- ADDITIONAL PROPERTIES (1) ---");
+    expect(body.content).toContain("PROPERTY 2");
+    expect(body.content).toContain("Property Address: 456 Oak Ave");
+    expect(body.content).toContain("Property Estimated Value: $750,000");
+    expect(body.content).toContain("Loan Amount Requested: $400,000");
+  });
+
+  it("appends flagged properties to the deal note when reviewBreakdown is provided", async () => {
+    await addDealNote(
+      notePayload,
+      999,
+      "test-token",
+      [
+        {
+          label: "Property 2",
+          address: "456 Oak Ave",
+          result: "MANUAL_REVIEW",
+          reason: "Property type could not be confirmed.",
+        },
+      ]
+    );
+
+    const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
+    expect(body.content).toContain("--- PROPERTIES NEEDING REVIEW (1) ---");
+    expect(body.content).toContain(
+      "Property 2 (456 Oak Ave): Property type could not be confirmed."
+    );
+  });
+});
+
+describe("setSubmissionNoteId", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pipedriveRequest.mockResolvedValue({ ok: true });
+  });
+
+  it("updates the deal with the submission note id", async () => {
+    await setSubmissionNoteId(999, 12345, "test-token");
+
+    expect(pipedriveRequest).toHaveBeenCalledWith(
+      "setSubmissionNoteId",
+      expect.stringContaining("/deals/999"),
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          "47b5f017160cbae79caa4bcaa0c778f8637ea380": "12345",
+        }),
+      })
+    );
   });
 });

@@ -3,6 +3,7 @@ import {
   FROM_EMAIL,
   WORKER_EMAIL,
   formatPropertyDetails,
+  formatReviewBreakdown,
   sendEmail,
 } from "../server/lib/email.js";
 import { createLogger } from "../server/lib/logger.js";
@@ -43,11 +44,20 @@ You will receive:
 
 Property Types: Commercial, Mixed Use, Multifamily, Residential Investment, Primary Residence, Land, Ground-Up Construction, Other
 
+SEARCH STRATEGY & HIERARCHY
+You MUST use web search to research the property using this specific priority order:
+1. OFFICIAL CITY/COUNTY RECORDS: Search for the tax assessor, tax map, or zoning map.
+   - For NEW YORK CITY: Search for the "BBL" (Borough, Block, Lot) via NYC ZoLa or ACRIS. This is the only way to get accurate square footage and units.
+2. COMMERCIAL PLATFORMS: If the property appears commercial or mixed-use, search LoopNet, Crexi, or PropertyShark.
+3. BUSINESS SEARCH: If the address is a storefront (e.g., "1816 Flatbush Ave"), search for the business name at that address to find building footprints or square footage.
+4. RESIDENTIAL PLATFORMS: Use Zillow or Redfin ONLY for residential investment properties.
+
 IMPORTANT RULES
 - Use the values submitted by the referral partner.
-- You MUST use web search to research the property: verify the submitted property type, verify zip code population, identify obvious concerns.
+- You MUST verify the submitted property type, verify zip code population, and identify obvious concerns.
 - Do NOT replace the submitted value with your own estimate.
-- If the verified property type differs from what was submitted, flag the discrepancy and return MANUAL_REVIEW.
+- ASSET TYPE DISCREPANCY: If the verified property type differs from what was submitted (e.g., submitted as Multifamily but is actually a Retail storefront), flag the discrepancy and return MANUAL_REVIEW.
+- If property type cannot be determined after following the hierarchy → MANUAL_REVIEW.
 
 STEP 1 — AUTOMATIC DECLINES
 Immediately decline:
@@ -108,19 +118,44 @@ Return JSON only:
 }
 Rules: PASS = REQUEST_FULL_SUBMISSION, MANUAL_REVIEW = GABE_REVIEW, DECLINE = DECLINE`;
 
-async function sendRejectionEmail(payload, aiResult) {
+function buildQuickReviewProperties(payload) {
+  const primary = {
+    label: "Property 1",
+    address: payload.property_address,
+    property_address: payload.property_address,
+    zip_code: payload.zip_code,
+    property_type: payload.property_type,
+    property_estimated_value: payload.property_estimated_value,
+    debt_on_property: payload.debt_on_property,
+  };
+
+  const additional = (payload.additional_properties || []).map(
+    (property, index) => ({
+      label: `Property ${index + 2}`,
+      address: property.property_address,
+      property_address: property.property_address,
+      zip_code: property.zip_code,
+      property_type: property.property_type,
+      property_estimated_value: property.property_estimated_value,
+      debt_on_property: property.debt_on_property,
+    })
+  );
+
+  return [primary, ...additional];
+}
+
+async function sendRejectionEmail(payload, flagged) {
   const rpEmail = payload.referral_partner_email;
   const rpName = payload.referral_partner_name || "there";
   const propertyDetails = formatPropertyDetails(payload);
+  const reviewExplanation = formatReviewBreakdown(flagged);
+  const flaggedCount = (flagged || []).length;
+  const propertyWord = flaggedCount === 1 ? "property" : "properties";
+  const reviewVerb = flaggedCount === 1 ? "requires" : "require";
 
-  const isManualReview = aiResult.result === "MANUAL_REVIEW";
-  const subject = isManualReview
-    ? "GYS Mortgage — Your Quick Review Requires Manual Review"
-    : "GYS Mortgage — Quick Review Result";
+  const subject = "GYS Mortgage — Your Quick Review Requires Manual Review";
 
-  const bodyText = isManualReview
-    ? `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nYour submission requires a manual review before we can proceed. Our team will be in touch shortly to discuss next steps.\n\n${propertyDetails}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`
-    : `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nUnfortunately, your submission did not pass our initial screening.\n\n${propertyDetails}\n\nIf you would like to understand more about why your submission did not qualify, please reply to this email and we will be happy to explain.\n\nGYS Mortgage Team`;
+  const bodyText = `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nYour submission requires a manual review before we can proceed. Our team will be in touch shortly to discuss next steps.\n\nThe following ${propertyWord} ${reviewVerb} review:\n${reviewExplanation}\n\n${propertyDetails}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`;
 
   const toAddresses = rpEmail ? [rpEmail] : [WORKER_EMAIL];
 
@@ -157,39 +192,53 @@ export default async function handler(req, res) {
       referralPartnerEmail: payload.referral_partner_email,
     });
 
-    const aiResult = await callOpenAI(QUICK_REVIEW_SYSTEM_PROMPT, {
-      property_address: payload.property_address,
-      zip_code: payload.zip_code,
-      property_type: payload.property_type,
-      property_estimated_value: payload.property_estimated_value,
-      debt_on_property: payload.debt_on_property,
-    });
+    const properties = buildQuickReviewProperties(payload);
+
+    const aiResults = await Promise.all(
+      properties.map(async (prop) => {
+        const aiResult = await callOpenAI(QUICK_REVIEW_SYSTEM_PROMPT, {
+          property_address: prop.property_address,
+          zip_code: prop.zip_code,
+          property_type: prop.property_type,
+          property_estimated_value: prop.property_estimated_value,
+          debt_on_property: prop.debt_on_property,
+        });
+
+        return {
+          label: prop.label,
+          address: prop.address,
+          result: aiResult.result,
+          reason:
+            aiResult.reason ||
+            aiResult.summary ||
+            "Requires manual review.",
+          summary: aiResult.summary,
+        };
+      })
+    );
+
+    const flagged = aiResults.filter((r) => r.result !== "PASS");
 
     log.info("AI review complete", {
-      result: aiResult.result,
-      confidence: aiResult.confidence,
-      reason: aiResult.reason,
-      summary: aiResult.summary,
-      nextStep: aiResult.next_step,
-      propertyTypeConfirmed: aiResult.property_type_confirmed,
-      populationFound: aiResult.population_found,
-      availableEquity: aiResult.available_equity,
-      flags: aiResult.flags,
+      propertyCount: aiResults.length,
+      flaggedCount: flagged.length,
+      results: aiResults.map((r) => ({ label: r.label, result: r.result })),
     });
 
-    if (aiResult.result === "PASS") {
+    if (flagged.length === 0) {
       log.info("PASS — no email sent");
-      return res.status(200).json({ result: "PASS", summary: aiResult.summary });
+      const summary = aiResults[0]?.summary || "Looks good";
+      return res.status(200).json({ result: "PASS", summary });
     }
 
-    log.info("Not PASS — sending email via Resend", { result: aiResult.result });
-    await sendRejectionEmail(payload, aiResult);
+    log.info("Not PASS — sending email via Resend", { flagged });
+    await sendRejectionEmail(payload, flagged);
     log.info("Email sent successfully");
 
     return res.status(200).json({
-      result: aiResult.result,
+      result: "MANUAL_REVIEW",
       reason:
-        aiResult.reason ||
+        formatReviewBreakdown(flagged) ||
         "Your submission does not meet our current lending criteria.",
     });
   } catch (err) {

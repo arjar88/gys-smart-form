@@ -32,9 +32,21 @@ const STAGE2_FIELDS = {
   notes: "",
 };
 
+const EMPTY_PROPERTY = {
+  property_address: "",
+  zip_code: "",
+  property_type: "",
+  property_estimated_value: "",
+  debt_on_property: "",
+  loan_amount_request: "",
+};
+
 export function SubmissionForm({ initialData, onBack }) {
   const [form, setForm] = useState(
     formatNumericFields({ ...STAGE2_FIELDS, ...initialData })
+  );
+  const [additionalProperties, setAdditionalProperties] = useState(() =>
+    (initialData?.additional_properties || []).map((p) => ({ ...EMPTY_PROPERTY, ...p }))
   );
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -44,6 +56,26 @@ export function SubmissionForm({ initialData, onBack }) {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     setError("");
+  }
+
+  function addProperty() {
+    setAdditionalProperties((prev) => [...prev, { ...EMPTY_PROPERTY }]);
+  }
+
+  function removeProperty(index) {
+    setAdditionalProperties((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handlePropertyChange(index) {
+    return (event) => {
+      const { name, value } = event.target;
+      setAdditionalProperties((prev) =>
+        prev.map((property, i) =>
+          i === index ? { ...property, [name]: value } : property
+        )
+      );
+      setError("");
+    };
   }
 
   async function handleSubmit(event) {
@@ -57,7 +89,10 @@ export function SubmissionForm({ initialData, onBack }) {
     fetch("/api/full-submission", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        additional_properties: additionalProperties,
+      }),
     }).catch((err) => console.error("Submission error:", err));
   }
 
@@ -199,6 +234,80 @@ export function SubmissionForm({ initialData, onBack }) {
             required
           />
         </FormSection>
+
+        {additionalProperties.map((property, index) => (
+          <FormSection key={index} title={`Property ${index + 2}`}>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => removeProperty(index)}
+                className="text-sm font-medium text-red-600 hover:text-red-700"
+              >
+                Remove
+              </button>
+            </div>
+            <FormField
+              label="Property Address"
+              name="property_address"
+              value={property.property_address}
+              onChange={handlePropertyChange(index)}
+              placeholder="Property Address"
+              required
+            />
+            <FormField
+              label="Zip Code"
+              name="zip_code"
+              value={property.zip_code}
+              onChange={handlePropertyChange(index)}
+              placeholder="Zip Code"
+              required
+            />
+            <FormSelect
+              label="Property Type"
+              name="property_type"
+              value={property.property_type}
+              onChange={handlePropertyChange(index)}
+              options={PROPERTY_TYPE_OPTIONS}
+              placeholder="Property Type"
+              required
+            />
+            <FormNumberField
+              label="Estimated Property Value"
+              name="property_estimated_value"
+              value={property.property_estimated_value}
+              onChange={handlePropertyChange(index)}
+              placeholder="Estimated Property Value"
+              required
+            />
+            <FormNumberField
+              label="Debt on the Property"
+              name="debt_on_property"
+              value={property.debt_on_property}
+              onChange={handlePropertyChange(index)}
+              placeholder="Debt on the Property"
+              required
+            />
+            <FormNumberField
+              label="Loan Amount Requested"
+              name="loan_amount_request"
+              value={property.loan_amount_request}
+              onChange={handlePropertyChange(index)}
+              placeholder="Loan Amount Requested"
+              required
+            />
+          </FormSection>
+        ))}
+
+        <div className="mb-8">
+          <button
+            type="button"
+            onClick={addProperty}
+            className="inline-flex items-center gap-2 rounded-md border border-gys-primary px-4 py-2.5 text-[15px] font-medium text-gys-primary transition-colors hover:bg-gys-primary/5"
+          >
+            <span aria-hidden="true">+</span>
+            Add another property
+          </button>
+        </div>
 
         <FormSection title="Borrower Info" largeTitle>
           <FormField

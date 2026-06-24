@@ -84,6 +84,7 @@ describe("quick-review handler", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.result).toBe("MANUAL_REVIEW");
+    expect(res.body.reason).toContain("Property 1 (123 Main St): Limited equity");
     expect(sendEmail).toHaveBeenCalledOnce();
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -95,9 +96,10 @@ describe("quick-review handler", () => {
     expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
     expect(sendEmail.mock.calls[0][0].text).toContain("123 Main St");
     expect(sendEmail.mock.calls[0][0].text).toContain("10001");
+    expect(sendEmail.mock.calls[0][0].text).toContain("The following property requires review:");
   });
 
-  it("sends decline email to RP only on DECLINE", async () => {
+  it("folds DECLINE into manual review (no separate decline path)", async () => {
     callOpenAI.mockResolvedValue({
       result: "DECLINE",
       reason: "Primary residence",
@@ -109,15 +111,15 @@ describe("quick-review handler", () => {
     await handler({ method: "POST", body: samplePayload }, res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.result).toBe("DECLINE");
-    expect(res.body.reason).toBe("Primary residence");
+    expect(res.body.result).toBe("MANUAL_REVIEW");
+    expect(res.body.reason).toContain("Property 1 (123 Main St): Primary residence");
     expect(sendEmail).toHaveBeenCalledOnce();
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: ["jane@example.com"],
         cc: [],
-        subject: "GYS Mortgage — Quick Review Result",
-        text: expect.stringContaining("Unfortunately, your submission did not pass"),
+        subject: "GYS Mortgage — Your Quick Review Requires Manual Review",
+        text: expect.stringContaining("requires a manual review"),
       })
     );
     expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
@@ -125,7 +127,7 @@ describe("quick-review handler", () => {
 
   it("falls back to worker email when referral partner email is missing", async () => {
     callOpenAI.mockResolvedValue({
-      result: "DECLINE",
+      result: "MANUAL_REVIEW",
       reason: "Out of guidelines",
     });
 
@@ -159,5 +161,68 @@ describe("quick-review handler", () => {
       expect.any(String),
       expect.objectContaining({ zip_code: "10001" })
     );
+  });
+
+  it("screens each property and returns PASS only when all pass (no email)", async () => {
+    const multiPayload = {
+      ...samplePayload,
+      additional_properties: [
+        {
+          property_address: "456 Oak Ave",
+          zip_code: "10002",
+          property_type: "Multifamily",
+          property_estimated_value: "800000",
+          debt_on_property: "150000",
+        },
+      ],
+    };
+
+    callOpenAI
+      .mockResolvedValueOnce({ result: "PASS", summary: "Good primary" })
+      .mockResolvedValueOnce({ result: "PASS", summary: "Good additional" });
+
+    const res = createMockRes();
+    await handler({ method: "POST", body: multiPayload }, res);
+
+    expect(callOpenAI).toHaveBeenCalledTimes(2);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ result: "PASS", summary: "Good primary" });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("returns MANUAL_REVIEW and sends email with flagged property details when one additional property fails", async () => {
+    const multiPayload = {
+      ...samplePayload,
+      additional_properties: [
+        {
+          property_address: "456 Oak Ave",
+          zip_code: "10002",
+          property_type: "Multifamily",
+          property_estimated_value: "800000",
+          debt_on_property: "150000",
+        },
+      ],
+    };
+
+    callOpenAI
+      .mockResolvedValueOnce({ result: "PASS", summary: "Good primary" })
+      .mockResolvedValueOnce({
+        result: "MANUAL_REVIEW",
+        reason: "Limited available equity",
+      });
+
+    const res = createMockRes();
+    await handler({ method: "POST", body: multiPayload }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.result).toBe("MANUAL_REVIEW");
+    expect(res.body.reason).toContain("Property 2 (456 Oak Ave): Limited available equity");
+
+    expect(sendEmail).toHaveBeenCalledOnce();
+    const emailText = sendEmail.mock.calls[0][0].text;
+    expect(emailText).toContain("The following property requires review:");
+    expect(emailText).toContain("Property 2 (456 Oak Ave): Limited available equity");
+    expect(emailText).toContain("Additional Properties (1):");
+    expect(emailText).toContain("Property 2: 456 Oak Ave");
   });
 });
