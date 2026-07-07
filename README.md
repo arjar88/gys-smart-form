@@ -58,8 +58,8 @@ The tests verify **orchestration logic** — that the right process runs for eac
 | AI result | Quick review (`/api/quick-review`) | Full submission (`/api/full-submission`) |
 |-----------|----------------------------------|------------------------------------------|
 | `PASS` | Returns success, no email | Submits to Pipedrive, no email |
-| `MANUAL_REVIEW` | Sends review email to RP | Sends review email to RP |
-| `DECLINE` | Sends decline email to RP | Sends decline email to RP |
+| `MANUAL_REVIEW` | Sends review email to RP; creates Pipedrive deal in Manual Review stage (182) | Sends review email to RP; submits to Pipedrive (Potential Lead stage) |
+| `DECLINE` | Sends review email to RP; creates Pipedrive deal in Manual Review stage (182) | Sends review email to RP; submits to Pipedrive (Potential Lead stage) |
 
 Additional coverage:
 

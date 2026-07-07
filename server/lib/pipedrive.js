@@ -39,25 +39,43 @@ export async function submitToPipedrive(payload, options = {}) {
     borrowerName: payload.borrower_name,
   });
 
-  log.info("Looking up referral partner and borrower in parallel");
-  const [rpId, borrower] = await Promise.all([
-    findOrCreateRP(
+  const includeBorrower = options.includeBorrower !== false;
+  let rpId;
+  let borrowerId = null;
+  let organizationId = null;
+
+  if (includeBorrower) {
+    log.info("Looking up referral partner and borrower in parallel");
+    const [rp, borrower] = await Promise.all([
+      findOrCreateRP(
+        payload.referral_partner_name,
+        payload.referral_partner_number,
+        payload.referral_partner_email,
+        payload.referral_partner_company,
+        apiToken
+      ),
+      findOrCreateBorrower(
+        payload.borrower_name,
+        payload.borrower_phone,
+        payload.borrower_email,
+        payload.business_name,
+        apiToken
+      ),
+    ]);
+    rpId = rp;
+    borrowerId = borrower.personId;
+    organizationId = borrower.orgId;
+  } else {
+    log.info("Looking up referral partner only (no borrower)");
+    rpId = await findOrCreateRP(
       payload.referral_partner_name,
       payload.referral_partner_number,
       payload.referral_partner_email,
       payload.referral_partner_company,
       apiToken
-    ),
-    findOrCreateBorrower(
-      payload.borrower_name,
-      payload.borrower_phone,
-      payload.borrower_email,
-      payload.business_name,
-      apiToken
-    ),
-  ]);
+    );
+  }
 
-  const { personId: borrowerId, orgId: organizationId } = borrower;
   log.info("Person lookup complete", { rpId, borrowerId, organizationId });
 
   log.info("Creating deal in Pipedrive");
@@ -74,7 +92,13 @@ export async function submitToPipedrive(payload, options = {}) {
     dealId,
   });
   const [noteId] = await Promise.all([
-    addDealNote(payload, dealId, apiToken, options.reviewBreakdown || []),
+    addDealNote(
+      payload,
+      dealId,
+      apiToken,
+      options.reviewBreakdown || [],
+      options.noteTitle
+    ),
     setCalendlyUid(dealId, apiToken),
     addReferralPartnerToDeal(dealId, rpId, apiToken),
   ]);

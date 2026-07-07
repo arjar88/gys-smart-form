@@ -1,3 +1,4 @@
+import { waitUntil } from "@vercel/functions";
 import { callOpenAI } from "../server/lib/openai.js";
 import {
   FROM_EMAIL,
@@ -6,6 +7,8 @@ import {
   formatReviewBreakdown,
   sendEmail,
 } from "../server/lib/email.js";
+import { submitToPipedrive } from "../server/lib/pipedrive.js";
+import { MANUAL_REVIEW_STAGE_ID } from "../server/lib/pipedrive-deals.js";
 import { createLogger } from "../server/lib/logger.js";
 
 const log = createLogger("quick-review");
@@ -234,6 +237,15 @@ export default async function handler(req, res) {
     log.info("Not PASS — sending email via Resend", { flagged });
     await sendRejectionEmail(payload, flagged);
     log.info("Email sent successfully");
+
+    waitUntil(
+      submitToPipedrive(payload, {
+        stageId: MANUAL_REVIEW_STAGE_ID,
+        reviewBreakdown: flagged,
+        includeBorrower: false,
+        noteTitle: "Quick Review Submission",
+      }).catch((err) => log.error("Pipedrive submission failed", err))
+    );
 
     return res.status(200).json({
       result: "MANUAL_REVIEW",

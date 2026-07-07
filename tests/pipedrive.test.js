@@ -93,7 +93,8 @@ describe("submitToPipedrive", () => {
       samplePayload,
       40405,
       "test-api-token",
-      []
+      [],
+      undefined
     );
     expect(setSubmissionNoteId).toHaveBeenCalledWith(40405, 12345, "test-api-token");
     expect(result).toEqual({ success: true, dealId: 40405 });
@@ -139,7 +140,64 @@ describe("submitToPipedrive", () => {
       samplePayload,
       40405,
       "test-api-token",
-      reviewBreakdown
+      reviewBreakdown,
+      undefined
+    );
+  });
+
+  it("skips borrower lookup when includeBorrower is false", async () => {
+    findOrCreateRP.mockResolvedValue(101);
+    createDeal.mockResolvedValue(40405);
+    addDealNote.mockResolvedValue(12345);
+
+    const quickReviewPayload = {
+      property_address: "123 Main St",
+      property_type: "Commercial",
+      property_estimated_value: "500000",
+      debt_on_property: "100000",
+      zip_code: "10001",
+      referral_partner_name: "Jane RP",
+      referral_partner_email: "jane@example.com",
+      referral_partner_number: "+15551234567",
+    };
+
+    await submitToPipedrive(quickReviewPayload, {
+      stageId: 182,
+      reviewBreakdown: [
+        {
+          label: "Property 1",
+          address: "123 Main St",
+          result: "MANUAL_REVIEW",
+          reason: "Limited equity",
+        },
+      ],
+      includeBorrower: false,
+      noteTitle: "Quick Review Submission",
+    });
+
+    expect(findOrCreateBorrower).not.toHaveBeenCalled();
+    expect(findOrCreateRP).toHaveBeenCalledOnce();
+    expect(createDeal).toHaveBeenCalledWith(
+      quickReviewPayload,
+      null,
+      null,
+      101,
+      "test-api-token",
+      182
+    );
+    expect(addDealNote).toHaveBeenCalledWith(
+      quickReviewPayload,
+      40405,
+      "test-api-token",
+      [
+        {
+          label: "Property 1",
+          address: "123 Main St",
+          result: "MANUAL_REVIEW",
+          reason: "Limited equity",
+        },
+      ],
+      "Quick Review Submission"
     );
   });
 

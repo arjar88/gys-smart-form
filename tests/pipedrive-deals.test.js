@@ -78,6 +78,26 @@ describe("createDeal", () => {
     const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
     expect(body.stage_id).toBe(54);
   });
+
+  it("uses property address as title when business_name is missing", async () => {
+    const { business_name: _businessName, ...payloadWithoutBusiness } =
+      basePayload;
+
+    await createDeal(
+      { ...payloadWithoutBusiness, property_type: "Commercial" },
+      null,
+      null,
+      3,
+      "test-token",
+      182
+    );
+
+    const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
+    expect(body.title).toBe("123 Main St");
+    expect(body.person_id).toBeUndefined();
+    expect(body.org_id).toBeUndefined();
+    expect(body.stage_id).toBe(182);
+  });
 });
 
 const notePayload = {
@@ -164,6 +184,32 @@ describe("addDealNote", () => {
     expect(body.content).toContain(
       "Property 2 (456 Oak Ave): Property type could not be confirmed."
     );
+  });
+
+  it("uses custom note title when provided", async () => {
+    await addDealNote(notePayload, 999, "test-token", [], "Quick Review Submission");
+
+    const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
+    expect(body.content).toContain("Quick Review Submission");
+    expect(body.content).not.toContain("Website Lead Submission");
+  });
+
+  it("falls back to N/A for missing borrower fields", async () => {
+    await addDealNote(
+      {
+        ...notePayload,
+        borrower_name: undefined,
+        borrower_phone: undefined,
+        borrower_email: undefined,
+      },
+      999,
+      "test-token"
+    );
+
+    const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
+    expect(body.content).toContain("Borrower: N/A");
+    expect(body.content).toContain("Phone: N/A");
+    expect(body.content).toContain("Email: N/A");
   });
 });
 

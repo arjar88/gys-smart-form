@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@vercel/functions", () => ({
+  waitUntil: vi.fn((promise) => promise),
+}));
+
 vi.mock("../server/lib/openai.js", () => ({
   callOpenAI: vi.fn(),
+}));
+
+vi.mock("../server/lib/pipedrive.js", () => ({
+  submitToPipedrive: vi.fn(),
 }));
 
 vi.mock("../server/lib/email.js", async (importOriginal) => {
@@ -12,9 +20,12 @@ vi.mock("../server/lib/email.js", async (importOriginal) => {
   };
 });
 
+import { waitUntil } from "@vercel/functions";
 import handler from "../api/quick-review.js";
 import { callOpenAI } from "../server/lib/openai.js";
+import { submitToPipedrive } from "../server/lib/pipedrive.js";
 import { sendEmail, WORKER_EMAIL } from "../server/lib/email.js";
+import { MANUAL_REVIEW_STAGE_ID } from "../server/lib/pipedrive-deals.js";
 
 const samplePayload = {
   property_address: "123 Main St",
@@ -54,6 +65,7 @@ function createMockRes() {
 describe("quick-review handler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
   });
 
   it("returns PASS without sending email", async () => {
@@ -69,6 +81,7 @@ describe("quick-review handler", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ result: "PASS", summary: "Looks good" });
     expect(sendEmail).not.toHaveBeenCalled();
+    expect(submitToPipedrive).not.toHaveBeenCalled();
   });
 
   it("sends manual review email to RP only on MANUAL_REVIEW", async () => {
@@ -97,6 +110,21 @@ describe("quick-review handler", () => {
     expect(sendEmail.mock.calls[0][0].text).toContain("123 Main St");
     expect(sendEmail.mock.calls[0][0].text).toContain("10001");
     expect(sendEmail.mock.calls[0][0].text).toContain("The following property requires review:");
+    expect(waitUntil).toHaveBeenCalledOnce();
+    expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload, {
+      stageId: MANUAL_REVIEW_STAGE_ID,
+      reviewBreakdown: [
+        {
+          label: "Property 1",
+          address: "123 Main St",
+          result: "MANUAL_REVIEW",
+          reason: "Limited equity",
+          summary: "Needs Gabe review",
+        },
+      ],
+      includeBorrower: false,
+      noteTitle: "Quick Review Submission",
+    });
   });
 
   it("folds DECLINE into manual review (no separate decline path)", async () => {
@@ -123,6 +151,7 @@ describe("quick-review handler", () => {
       })
     );
     expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
+    expect(submitToPipedrive).toHaveBeenCalledOnce();
   });
 
   it("falls back to worker email when referral partner email is missing", async () => {
@@ -188,6 +217,7 @@ describe("quick-review handler", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ result: "PASS", summary: "Good primary" });
     expect(sendEmail).not.toHaveBeenCalled();
+    expect(submitToPipedrive).not.toHaveBeenCalled();
   });
 
   it("returns MANUAL_REVIEW and sends email with flagged property details when one additional property fails", async () => {
@@ -224,5 +254,6 @@ describe("quick-review handler", () => {
     expect(emailText).toContain("Property 2 (456 Oak Ave): Limited available equity");
     expect(emailText).toContain("Additional Properties (1):");
     expect(emailText).toContain("Property 2: 456 Oak Ave");
+    expect(submitToPipedrive).toHaveBeenCalledOnce();
   });
 });

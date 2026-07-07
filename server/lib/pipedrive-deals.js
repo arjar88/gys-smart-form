@@ -6,6 +6,7 @@ const COMPANY_DOMAIN = "gysmortgage";
 const ORIGINATION_PIPELINE_ID = 10;
 export const SCHEDULING_A_CALL_STAGE_ID = 56;
 export const POTENTIAL_LEAD_STAGE_ID = 54;
+export const MANUAL_REVIEW_STAGE_ID = 182;
 const CALENDLY_UID_FIELD_KEY = "9a5dcb6b0add9b7fdb75fd88c4bc2c0e7cadc5d8";
 const SUBMISSION_NOTE_ID_FIELD_KEY = "47b5f017160cbae79caa4bcaa0c778f8637ea380";
 
@@ -95,9 +96,11 @@ export async function createDeal(
   const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/deals?api_token=${apiToken}`;
 
   const dealData = {
-    title: payload.business_name,
-    person_id: borrowerId,
-    org_id: organizationId,
+    title:
+      payload.business_name ||
+      payload.property_address ||
+      payload.referral_partner_name ||
+      "Untitled Deal",
     pipeline_id: ORIGINATION_PIPELINE_ID,
     stage_id: stageId,
     status: "open",
@@ -120,6 +123,9 @@ export async function createDeal(
       payload.relationship_with_borrower
     ),
   };
+
+  if (borrowerId) dealData.person_id = borrowerId;
+  if (organizationId) dealData.org_id = organizationId;
 
   log.info("Creating deal", {
     title: dealData.title,
@@ -206,17 +212,18 @@ export async function addDealNote(
   payload,
   dealId,
   apiToken,
-  reviewBreakdown = []
+  reviewBreakdown = [],
+  noteTitle = "Website Lead Submission"
 ) {
   const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/notes?api_token=${apiToken}`;
 
   const noteData = {
     deal_id: dealId,
-    content: `Website Lead Submission
+    content: `${noteTitle}
 
-Borrower: ${payload.borrower_name}
-Phone: ${payload.borrower_phone}
-Email: ${payload.borrower_email}
+Borrower: ${payload.borrower_name || "N/A"}
+Phone: ${payload.borrower_phone || "N/A"}
+Email: ${payload.borrower_email || "N/A"}
 Company: ${payload.business_name || "N/A"}
 
 Referral Partner: ${payload.referral_partner_name || "N/A"}
