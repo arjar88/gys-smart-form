@@ -4,6 +4,7 @@ export function FormField({
   type = "text",
   value,
   onChange,
+  onBlur,
   placeholder,
   required = false,
   min,
@@ -21,6 +22,7 @@ export function FormField({
         type={type}
         value={value}
         onChange={onChange}
+        onBlur={onBlur}
         placeholder={placeholder ?? label}
         required={required}
         min={min}

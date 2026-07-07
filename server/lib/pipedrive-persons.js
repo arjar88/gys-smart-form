@@ -87,12 +87,13 @@ async function searchPersonByEmail(email, apiToken) {
 
   if (!hit) return null;
 
-  log.info("Found person by email", { personId: hit.item.id });
+  const item = hit.item;
+  log.info("Found person by email", { personId: item.id });
   return {
-    personId: hit.item.id,
-    orgId: hit.item.organization ? hit.item.organization.id : null,
-    phones: hit.item.phones || [],
-    emails: hit.item.emails || [],
+    personId: item.id,
+    orgId: item.organization ? item.organization.id : null,
+    phones: item.phones || [],
+    emails: item.emails || [],
   };
 }
 
@@ -245,6 +246,32 @@ export async function findOrCreateBorrower(
     apiToken
   );
   return { personId, orgId };
+}
+
+export async function getPartnerDetailsById(id, apiToken) {
+  if (!id) return null;
+
+  const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/persons/${id}?api_token=${apiToken}`;
+
+  const { ok, data } = await pipedriveRequest("getPersonById", url);
+  if (!ok || !data?.data) {
+    log.info("No partner found by ID", { id });
+    return null;
+  }
+
+  const person = data.data;
+  const phoneArr = person.phone || person.phones || [];
+  const emailArr = person.email || person.emails || [];
+  const primaryPhone = phoneArr.find((p) => p.primary) || phoneArr[0];
+  const primaryEmail = emailArr.find((e) => e.primary) || emailArr[0];
+
+  return {
+    personId: person.id,
+    name: person.name || "",
+    email: extractEmailValue(primaryEmail) || "",
+    phone: normalizePhone(extractPhoneValue(primaryPhone)),
+    company: person.org_id?.name || person.org_name || "",
+  };
 }
 
 export async function findOrCreateRP(

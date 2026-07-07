@@ -1,4 +1,8 @@
-import { findOrCreateBorrower, findOrCreateRP } from "./pipedrive-persons.js";
+import {
+  findOrCreateBorrower,
+  findOrCreateRP,
+  getPartnerDetailsById,
+} from "./pipedrive-persons.js";
 import {
   createDeal,
   setCalendlyUid,
@@ -9,6 +13,21 @@ import {
 import { createLogger } from "./logger.js";
 
 const log = createLogger("pipedrive");
+
+export async function lookupPartnerDetails(id) {
+  const apiToken = process.env.PIPEDRIVE_API_KEY;
+  if (!apiToken) throw new Error("PIPEDRIVE_API_KEY is not configured.");
+
+  const partner = await getPartnerDetailsById(id, apiToken);
+  if (!partner) return null;
+
+  return {
+    referral_partner_name: partner.name,
+    referral_partner_email: partner.email,
+    referral_partner_number: partner.phone,
+    referral_partner_company: partner.company,
+  };
+}
 
 export async function submitToPipedrive(payload, options = {}) {
   const apiToken = process.env.PIPEDRIVE_API_KEY;

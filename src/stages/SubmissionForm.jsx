@@ -14,6 +14,7 @@ import {
 import { formatNumericFields } from "../utils/numberFormat";
 
 const STAGE2_FIELDS = {
+  pipedrive_id: "",
   referral_partner_name: "",
   referral_partner_company: "",
   referral_partner_number: "",
@@ -41,6 +42,13 @@ const EMPTY_PROPERTY = {
   loan_amount_request: "",
 };
 
+const PARTNER_LOOKUP_MESSAGES = {
+  loading: "Looking up your partner profile...",
+  success: "Partner info found and applied.",
+  not_found: "No saved partner profile found. Please complete the fields below.",
+  error: "Unable to look up your info right now. Please complete the fields below.",
+};
+
 export function SubmissionForm({ initialData, onBack }) {
   const [form, setForm] = useState(
     formatNumericFields({ ...STAGE2_FIELDS, ...initialData })
@@ -51,11 +59,57 @@ export function SubmissionForm({ initialData, onBack }) {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [partnerLookupStatus, setPartnerLookupStatus] = useState("idle");
 
   function handleChange(event) {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     setError("");
+
+    if (name === "pipedrive_id") {
+      setPartnerLookupStatus("idle");
+    }
+  }
+
+  async function handlePartnerIdBlur(event) {
+    const input = event.target;
+    const id = input.value.trim();
+
+    if (!id) {
+      setPartnerLookupStatus("idle");
+      return;
+    }
+
+    setPartnerLookupStatus("loading");
+
+    try {
+      const response = await fetch(
+        `/api/partner-lookup?id=${encodeURIComponent(id)}`
+      );
+
+      if (response.status === 404) {
+        setPartnerLookupStatus("not_found");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("Partner lookup failed");
+      }
+
+      const partner = await response.json();
+
+      setForm((prev) => ({
+        ...prev,
+        referral_partner_name: partner.referral_partner_name,
+        referral_partner_company: partner.referral_partner_company,
+        referral_partner_number: partner.referral_partner_number,
+        referral_partner_email: partner.referral_partner_email,
+      }));
+      setPartnerLookupStatus("success");
+    } catch (lookupError) {
+      console.error("Partner lookup error:", lookupError);
+      setPartnerLookupStatus("error");
+    }
   }
 
   function addProperty() {
@@ -86,11 +140,13 @@ export function SubmissionForm({ initialData, onBack }) {
     // Immediately show the thank you screen — fire and forget the backend call.
     setSubmitted(true);
 
+    const { pipedrive_id: _partnerId, ...submission } = form;
+
     fetch("/api/full-submission", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...form,
+        ...submission,
         additional_properties: additionalProperties,
       }),
     }).catch((err) => console.error("Submission error:", err));
@@ -139,6 +195,28 @@ export function SubmissionForm({ initialData, onBack }) {
     >
       <form id="submission-form" onSubmit={handleSubmit} className="space-y-2">
         <FormSection title="Referral Partner Info" largeTitle>
+          <FormField
+            label="Pipedrive Partner ID (Optional)"
+            name="pipedrive_id"
+            type="text"
+            value={form.pipedrive_id}
+            onChange={handleChange}
+            onBlur={handlePartnerIdBlur}
+            placeholder="e.g. 12345"
+          />
+          {partnerLookupStatus !== "idle" && (
+            <p
+              className={`-mt-1 mb-2 text-sm ${
+                partnerLookupStatus === "success"
+                  ? "text-green-700"
+                  : partnerLookupStatus === "loading"
+                    ? "text-gys-label/70"
+                    : "text-amber-700"
+              }`}
+            >
+              {PARTNER_LOOKUP_MESSAGES[partnerLookupStatus]}
+            </p>
+          )}
           <FormField
             label="Rep Name"
             name="referral_partner_name"

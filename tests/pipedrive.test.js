@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../server/lib/pipedrive-persons.js", () => ({
   findOrCreateBorrower: vi.fn(),
   findOrCreateRP: vi.fn(),
+  getPartnerDetailsById: vi.fn(),
 }));
 
 vi.mock("../server/lib/pipedrive-deals.js", () => ({
@@ -13,8 +14,12 @@ vi.mock("../server/lib/pipedrive-deals.js", () => ({
   setSubmissionNoteId: vi.fn(),
 }));
 
-import { submitToPipedrive } from "../server/lib/pipedrive.js";
-import { findOrCreateBorrower, findOrCreateRP } from "../server/lib/pipedrive-persons.js";
+import { submitToPipedrive, lookupPartnerDetails } from "../server/lib/pipedrive.js";
+import {
+  findOrCreateBorrower,
+  findOrCreateRP,
+  getPartnerDetailsById,
+} from "../server/lib/pipedrive-persons.js";
 import {
   createDeal,
   setCalendlyUid,
@@ -142,5 +147,51 @@ describe("submitToPipedrive", () => {
     delete process.env.PIPEDRIVE_API_KEY;
 
     await expect(submitToPipedrive(samplePayload)).rejects.toThrow("PIPEDRIVE_API_KEY is not configured.");
+  });
+});
+
+describe("lookupPartnerDetails", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.PIPEDRIVE_API_KEY = "test-api-token";
+  });
+
+  it("returns mapped partner details when found", async () => {
+    getPartnerDetailsById.mockResolvedValue({
+      personId: 101,
+      name: "Bob RP",
+      email: "bob@example.com",
+      phone: "+15553334444",
+      company: "Bob Co",
+    });
+
+    const result = await lookupPartnerDetails("101");
+
+    expect(getPartnerDetailsById).toHaveBeenCalledWith(
+      "101",
+      "test-api-token"
+    );
+    expect(result).toEqual({
+      referral_partner_name: "Bob RP",
+      referral_partner_email: "bob@example.com",
+      referral_partner_number: "+15553334444",
+      referral_partner_company: "Bob Co",
+    });
+  });
+
+  it("returns null when partner is not found", async () => {
+    getPartnerDetailsById.mockResolvedValue(null);
+
+    const result = await lookupPartnerDetails("999");
+
+    expect(result).toBeNull();
+  });
+
+  it("throws when PIPEDRIVE_API_KEY is missing", async () => {
+    delete process.env.PIPEDRIVE_API_KEY;
+
+    await expect(lookupPartnerDetails("101")).rejects.toThrow(
+      "PIPEDRIVE_API_KEY is not configured."
+    );
   });
 });
