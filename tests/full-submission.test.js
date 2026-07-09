@@ -4,9 +4,13 @@ vi.mock("@vercel/functions", () => ({
   waitUntil: vi.fn((promise) => promise),
 }));
 
-vi.mock("../server/lib/openai.js", () => ({
-  callOpenAI: vi.fn(),
-}));
+vi.mock("../server/lib/openai.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    callOpenAI: vi.fn(),
+  };
+});
 
 vi.mock("../server/lib/pipedrive.js", () => ({
   submitToPipedrive: vi.fn(),

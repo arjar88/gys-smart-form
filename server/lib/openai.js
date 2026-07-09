@@ -4,28 +4,52 @@ const log = createLogger("openai");
 const OPENAI_API_URL = "https://api.openai.com/v1/responses";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o";
 
-const REVIEW_OUTPUT_SCHEMA = {
+export const QUICK_REVIEW_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
-    result: { type: "string", enum: ["PASS", "MANUAL_REVIEW", "DECLINE"] },
-    next_step: { type: ["string", "null"] },
-    discovery_call_recommendation: { type: ["boolean", "null"] },
+    result: { type: "string", enum: ["PASS", "MANUAL_REVIEW"] },
+    next_step: {
+      type: "string",
+      enum: ["REQUEST_FULL_SUBMISSION", "GABE_REVIEW"],
+    },
     confidence: { type: "number" },
     summary: { type: "string" },
     reason: { type: "string" },
-    property_type_confirmed: { type: ["string", "null"] },
-    population_found: { type: ["string", "null"] },
-    available_equity: { type: ["string", "null"] },
+    population_found: { type: "string" },
+    available_equity: { type: "string" },
     flags: { type: "array", items: { type: "string" } },
   },
   required: [
     "result",
     "next_step",
+    "confidence",
+    "summary",
+    "reason",
+    "population_found",
+    "available_equity",
+    "flags",
+  ],
+  additionalProperties: false,
+};
+
+export const FULL_SUBMISSION_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    result: { type: "string", enum: ["PASS", "MANUAL_REVIEW"] },
+    discovery_call_recommendation: { type: "boolean" },
+    confidence: { type: "number" },
+    summary: { type: "string" },
+    reason: { type: "string" },
+    population_found: { type: "string" },
+    available_equity: { type: "string" },
+    flags: { type: "array", items: { type: "string" } },
+  },
+  required: [
+    "result",
     "discovery_call_recommendation",
     "confidence",
     "summary",
     "reason",
-    "property_type_confirmed",
     "population_found",
     "available_equity",
     "flags",
@@ -63,7 +87,11 @@ function extractWebSearchCalls(data) {
     }));
 }
 
-export async function callOpenAI(systemPrompt, userPayload) {
+export async function callOpenAI(
+  systemPrompt,
+  userPayload,
+  { outputSchema = FULL_SUBMISSION_OUTPUT_SCHEMA } = {}
+) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
 
@@ -92,7 +120,7 @@ export async function callOpenAI(systemPrompt, userPayload) {
           type: "json_schema",
           name: "review_decision",
           strict: true,
-          schema: REVIEW_OUTPUT_SCHEMA,
+          schema: outputSchema,
         },
       },
     }),

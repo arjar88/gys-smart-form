@@ -4,9 +4,13 @@ vi.mock("@vercel/functions", () => ({
   waitUntil: vi.fn((promise) => promise),
 }));
 
-vi.mock("../server/lib/openai.js", () => ({
-  callOpenAI: vi.fn(),
-}));
+vi.mock("../server/lib/openai.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    callOpenAI: vi.fn(),
+  };
+});
 
 vi.mock("../server/lib/pipedrive.js", () => ({
   submitToPipedrive: vi.fn(),
@@ -188,7 +192,8 @@ describe("quick-review handler", () => {
 
     expect(callOpenAI).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ zip_code: "10001" })
+      expect.objectContaining({ zip_code: "10001" }),
+      expect.objectContaining({ outputSchema: expect.any(Object) })
     );
   });
 

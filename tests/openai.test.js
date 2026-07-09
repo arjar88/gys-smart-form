@@ -20,12 +20,10 @@ describe("callOpenAI", () => {
       json: async () => ({
         output_text: JSON.stringify({
           result: "PASS",
-          next_step: null,
           discovery_call_recommendation: true,
           confidence: 95,
           summary: "Looks good",
           reason: "Strong equity",
-          property_type_confirmed: "Commercial",
           population_found: "50,000",
           available_equity: "$200,000",
           flags: [],
@@ -73,11 +71,9 @@ describe("callOpenAI", () => {
                 text: JSON.stringify({
                   result: "PASS",
                   next_step: "REQUEST_FULL_SUBMISSION",
-                  discovery_call_recommendation: null,
                   confidence: 90,
                   summary: "Good deal",
                   reason: "Strong equity",
-                  property_type_confirmed: "Multifamily",
                   population_found: "60,000",
                   available_equity: "$500,000",
                   flags: [],
@@ -90,10 +86,14 @@ describe("callOpenAI", () => {
     });
 
     const { callOpenAI } = await import("../server/lib/openai.js");
-    const result = await callOpenAI("System prompt", {
-      property_address: "1819 Flatbush Ave",
-      zip_code: "11210",
-    });
+    const result = await callOpenAI(
+      "System prompt",
+      {
+        property_address: "1819 Flatbush Ave",
+        zip_code: "11210",
+      },
+      { outputSchema: (await import("../server/lib/openai.js")).QUICK_REVIEW_OUTPUT_SCHEMA }
+    );
 
     expect(result.result).toBe("PASS");
   });
