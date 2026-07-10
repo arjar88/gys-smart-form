@@ -69,11 +69,28 @@ Additional coverage:
 
 ### What the tests do not cover
 
-- Live OpenAI decision quality (non-deterministic; prompts and models change)
+- Live OpenAI decision quality (non-deterministic; prompts and models change) — use prompt evals below
 - Real Pipedrive or Resend API behavior
 - Frontend UI and iframe integration
 
 Use the manual E2E checklist below for those.
+
+## Prompt evals (Promptfoo)
+
+To test screening prompt quality without filling the form, run live OpenAI evals against fixture cases in [`promptfooconfig.yaml`](promptfooconfig.yaml). These call the same `callOpenAI` path as production (Responses API + web search + JSON schema).
+
+Requires `OPENAI_API_KEY` in `.env` or `.env.local` (same as the API routes).
+
+```bash
+npm run eval
+npm run eval:view
+```
+
+Eval history is stored in `.promptfoo/` (gitignored). Cases assert on `result` (`PASS` / `MANUAL_REVIEW`) for property-type rules, equity thresholds, land population, and address/ZIP mismatch. Each run hits the live OpenAI API and incurs cost.
+
+Each eval output also includes `user_facing_message` (and `email_review_line` on fails) — the same reason text the form/API returns and the review email would show the referral partner.
+
+Prompts live in [`server/lib/prompts/`](server/lib/prompts/) so evals and API routes share the same text.
 
 ## E2E test checklist (live site)
 

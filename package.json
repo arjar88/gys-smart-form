@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval": "PROMPTFOO_CONFIG_DIR=.promptfoo promptfoo eval",
+    "eval:view": "PROMPTFOO_CONFIG_DIR=.promptfoo promptfoo view"
   },
   "dependencies": {
     "@vercel/functions": "^3.6.3",
@@ -20,6 +22,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.8",
     "@vitejs/plugin-react": "^4.5.2",
+    "promptfoo": "^0.121.18",
     "tailwindcss": "^4.1.8",
     "vite": "^6.3.5",
     "vitest": "^4.1.8"

@@ -1,0 +1,193 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: GYS screening prompt evals (quick-review + full-submission)
+
+prompts:
+  - "{{prompt}}"
+
+providers:
+  - file://evals/openai-provider.js
+
+defaultTest:
+  assert:
+    - type: is-json
+    - type: javascript
+      value: |
+        const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+        return parsed.result === 'PASS' || parsed.result === 'MANUAL_REVIEW';
+
+tests:
+  # --- Quick review ---
+  - description: Commercial with enough equity → PASS
+    vars:
+      prompt: quick-review
+      property_address: "350 Fifth Avenue"
+      zip_code: "10118"
+      property_type: Commercial
+      property_estimated_value: "500000"
+      debt_on_property: "100000"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'PASS';
+
+  - description: Commercial with limited equity → MANUAL_REVIEW
+    vars:
+      prompt: quick-review
+      property_address: "350 Fifth Avenue"
+      zip_code: "10118"
+      property_type: Commercial
+      property_estimated_value: "200000"
+      debt_on_property: "100000"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'MANUAL_REVIEW';
+
+  - description: Primary Residence → MANUAL_REVIEW
+    vars:
+      prompt: quick-review
+      property_address: "350 Fifth Avenue"
+      zip_code: "10118"
+      property_type: "Primary Residence"
+      property_estimated_value: "500000"
+      debt_on_property: "100000"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'MANUAL_REVIEW';
+
+  - description: Ground-Up Construction → MANUAL_REVIEW
+    vars:
+      prompt: quick-review
+      property_address: "350 Fifth Avenue"
+      zip_code: "10118"
+      property_type: "Ground-Up Construction"
+      property_estimated_value: "500000"
+      debt_on_property: "100000"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'MANUAL_REVIEW';
+
+  - description: Other property type → MANUAL_REVIEW
+    vars:
+      prompt: quick-review
+      property_address: "350 Fifth Avenue"
+      zip_code: "10118"
+      property_type: Other
+      property_estimated_value: "500000"
+      debt_on_property: "100000"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'MANUAL_REVIEW';
+
+  - description: Missing property value → MANUAL_REVIEW
+    vars:
+      prompt: quick-review
+      property_address: "350 Fifth Avenue"
+      zip_code: "10118"
+      property_type: Commercial
+      property_estimated_value: "0"
+      debt_on_property: "0"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'MANUAL_REVIEW';
+
+  - description: Land in high-pop ZIP with enough equity → PASS
+    vars:
+      prompt: quick-review
+      property_address: "350 Fifth Avenue"
+      zip_code: "10118"
+      property_type: Land
+      property_estimated_value: "500000"
+      debt_on_property: "100000"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'PASS';
+
+  - description: Land in low-pop ZIP → MANUAL_REVIEW
+    vars:
+      prompt: quick-review
+      property_address: "100 Main Street"
+      zip_code: "13617"
+      property_type: Land
+      property_estimated_value: "500000"
+      debt_on_property: "100000"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'MANUAL_REVIEW';
+
+  - description: Address/ZIP mismatch → MANUAL_REVIEW
+    vars:
+      prompt: quick-review
+      property_address: "1 Market Street, San Francisco, CA"
+      zip_code: "10001"
+      property_type: Commercial
+      property_estimated_value: "500000"
+      debt_on_property: "100000"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'MANUAL_REVIEW';
+
+  # --- Full submission (same property fixtures + borrower fields) ---
+  - description: Full submission — Commercial with enough equity → PASS
+    vars:
+      prompt: full-submission
+      property_address: "350 Fifth Avenue"
+      zip_code: "10118"
+      property_type: Commercial
+      property_estimated_value: "500000"
+      debt_on_property: "100000"
+      borrower_name: "Eval Borrower"
+      business_name: "Eval Holdings LLC"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'PASS';
+
+  - description: Full submission — Primary Residence → MANUAL_REVIEW
+    vars:
+      prompt: full-submission
+      property_address: "350 Fifth Avenue"
+      zip_code: "10118"
+      property_type: "Primary Residence"
+      property_estimated_value: "500000"
+      debt_on_property: "100000"
+      borrower_name: "Eval Borrower"
+      business_name: "Eval Holdings LLC"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'MANUAL_REVIEW';
+
+  - description: Full submission — limited equity → MANUAL_REVIEW
+    vars:
+      prompt: full-submission
+      property_address: "350 Fifth Avenue"
+      zip_code: "10118"
+      property_type: Commercial
+      property_estimated_value: "200000"
+      debt_on_property: "100000"
+      borrower_name: "Eval Borrower"
+      business_name: "Eval Holdings LLC"
+    assert:
+      - type: javascript
+        value: |
+          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+          return parsed.result === 'MANUAL_REVIEW';
