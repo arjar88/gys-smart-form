@@ -13,181 +13,119 @@ defaultTest:
     - type: javascript
       value: |
         const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-        return parsed.result === 'PASS' || parsed.result === 'MANUAL_REVIEW';
+        const expected = context.vars.expected_result;
+        return {
+          pass: parsed.result === expected,
+          score: parsed.result === expected ? 1 : 0,
+          reason: `Expected ${expected}, received ${parsed.result}`,
+        };
+    - type: javascript
+      value: |
+        const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+        const isQuick = context.vars.prompt === 'quick-review';
+        const expectedPass = context.vars.expected_result === 'PASS';
+        const mappingIsCorrect = isQuick
+          ? parsed.next_step === (expectedPass ? 'REQUEST_FULL_SUBMISSION' : 'GABE_REVIEW')
+          : parsed.discovery_call_recommendation === expectedPass;
+        return {
+          pass: mappingIsCorrect,
+          score: mappingIsCorrect ? 1 : 0,
+          reason: isQuick
+            ? `Expected next_step mapping for ${context.vars.expected_result}`
+            : `Expected discovery_call_recommendation=${expectedPass}`,
+        };
+    - type: javascript
+      value: |
+        const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+        const normalize = (value) =>
+          String(value || '')
+            .normalize('NFKD')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim();
+        const ignoredWords = new Set([
+          'a', 'at', 'available', 'code', 'does', 'least', 'limited', 'manual',
+          'match', 'not', 'of', 'requires', 'review', 'submitted', 'the',
+        ]);
+        const configuredTerms = context.vars.expected_reason_terms;
+        const expectedTerms = Array.isArray(configuredTerms)
+          ? configuredTerms.map(normalize)
+          : normalize(context.vars.expected_reason)
+              .split(' ')
+              .filter((word) => word && !ignoredWords.has(word));
+        if (expectedTerms.length === 0) return true;
+        const normalizedReason = normalize(parsed.reason);
+        const missingTerms = expectedTerms.filter(
+          (term) => !normalizedReason.includes(term)
+        );
+        const pass = missingTerms.length === 0;
+        return {
+          pass,
+          score: pass ? 1 : 0,
+          reason: pass
+            ? 'Reason contains the expected rule concepts'
+            : `Reason is missing expected concepts: ${missingTerms.join(', ')}`,
+        };
+    - type: javascript
+      value: |
+        const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+        const expectedPass = context.vars.expected_result === 'PASS';
+        if (expectedPass) {
+          const expectedMessage = parsed.summary || 'Looks good';
+          const pass =
+            parsed.user_facing_message === expectedMessage &&
+            parsed.email_review_line === null;
+          return {
+            pass,
+            score: pass ? 1 : 0,
+            reason: 'PASS must expose summary to the response and no review email line',
+          };
+        }
+        const expectedReason =
+          parsed.reason || parsed.summary || 'Requires manual review.';
+        const expectedLine =
+          `Property 1 (${context.vars.property_address || 'N/A'}): ${expectedReason}`;
+        const pass =
+          parsed.user_facing_message === expectedLine &&
+          parsed.email_review_line === expectedLine;
+        return {
+          pass,
+          score: pass ? 1 : 0,
+          reason: 'MANUAL_REVIEW response and email line must match the production format',
+        };
+    - type: javascript
+      value: |
+        const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+        const pass =
+          typeof parsed.summary === 'string' &&
+          typeof parsed.reason === 'string' &&
+          typeof parsed.population_found === 'string' &&
+          typeof parsed.available_equity === 'string' &&
+          Array.isArray(parsed.flags);
+        return {
+          pass,
+          score: pass ? 1 : 0,
+          reason: 'Expected all structured AI review fields with valid types',
+        };
+    - type: javascript
+      value: |
+        const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+        const decisionText = `${parsed.summary || ''} ${parsed.reason || ''}`;
+        const bannedLanguage =
+          /\b(actually|however|although|despite|solid opportunity|strong opportunity|great opportunity|promising opportunity)\b/i;
+        const reasonWordCount = String(parsed.reason || '').trim().split(/\s+/).filter(Boolean).length;
+        const summaryWordCount = String(parsed.summary || '').trim().split(/\s+/).filter(Boolean).length;
+        const pass =
+          !bannedLanguage.test(decisionText) &&
+          !decisionText.includes('?') &&
+          reasonWordCount <= 25 &&
+          summaryWordCount <= 25;
+        return {
+          pass,
+          score: pass ? 1 : 0,
+          reason: pass
+            ? 'Decision language is concise and factual'
+            : 'Decision contains deliberation, promotional language, a question, or excessive detail',
+        };
 
-tests:
-  # --- Quick review ---
-  - description: Commercial with enough equity → PASS
-    vars:
-      prompt: quick-review
-      property_address: "350 Fifth Avenue"
-      zip_code: "10118"
-      property_type: Commercial
-      property_estimated_value: "500000"
-      debt_on_property: "100000"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'PASS';
-
-  - description: Commercial with limited equity → MANUAL_REVIEW
-    vars:
-      prompt: quick-review
-      property_address: "350 Fifth Avenue"
-      zip_code: "10118"
-      property_type: Commercial
-      property_estimated_value: "200000"
-      debt_on_property: "100000"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'MANUAL_REVIEW';
-
-  - description: Primary Residence → MANUAL_REVIEW
-    vars:
-      prompt: quick-review
-      property_address: "350 Fifth Avenue"
-      zip_code: "10118"
-      property_type: "Primary Residence"
-      property_estimated_value: "500000"
-      debt_on_property: "100000"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'MANUAL_REVIEW';
-
-  - description: Ground-Up Construction → MANUAL_REVIEW
-    vars:
-      prompt: quick-review
-      property_address: "350 Fifth Avenue"
-      zip_code: "10118"
-      property_type: "Ground-Up Construction"
-      property_estimated_value: "500000"
-      debt_on_property: "100000"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'MANUAL_REVIEW';
-
-  - description: Other property type → MANUAL_REVIEW
-    vars:
-      prompt: quick-review
-      property_address: "350 Fifth Avenue"
-      zip_code: "10118"
-      property_type: Other
-      property_estimated_value: "500000"
-      debt_on_property: "100000"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'MANUAL_REVIEW';
-
-  - description: Missing property value → MANUAL_REVIEW
-    vars:
-      prompt: quick-review
-      property_address: "350 Fifth Avenue"
-      zip_code: "10118"
-      property_type: Commercial
-      property_estimated_value: "0"
-      debt_on_property: "0"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'MANUAL_REVIEW';
-
-  - description: Land in high-pop ZIP with enough equity → PASS
-    vars:
-      prompt: quick-review
-      property_address: "350 Fifth Avenue"
-      zip_code: "10118"
-      property_type: Land
-      property_estimated_value: "500000"
-      debt_on_property: "100000"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'PASS';
-
-  - description: Land in low-pop ZIP → MANUAL_REVIEW
-    vars:
-      prompt: quick-review
-      property_address: "100 Main Street"
-      zip_code: "13617"
-      property_type: Land
-      property_estimated_value: "500000"
-      debt_on_property: "100000"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'MANUAL_REVIEW';
-
-  - description: Address/ZIP mismatch → MANUAL_REVIEW
-    vars:
-      prompt: quick-review
-      property_address: "1 Market Street, San Francisco, CA"
-      zip_code: "10001"
-      property_type: Commercial
-      property_estimated_value: "500000"
-      debt_on_property: "100000"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'MANUAL_REVIEW';
-
-  # --- Full submission (same property fixtures + borrower fields) ---
-  - description: Full submission — Commercial with enough equity → PASS
-    vars:
-      prompt: full-submission
-      property_address: "350 Fifth Avenue"
-      zip_code: "10118"
-      property_type: Commercial
-      property_estimated_value: "500000"
-      debt_on_property: "100000"
-      borrower_name: "Eval Borrower"
-      business_name: "Eval Holdings LLC"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'PASS';
-
-  - description: Full submission — Primary Residence → MANUAL_REVIEW
-    vars:
-      prompt: full-submission
-      property_address: "350 Fifth Avenue"
-      zip_code: "10118"
-      property_type: "Primary Residence"
-      property_estimated_value: "500000"
-      debt_on_property: "100000"
-      borrower_name: "Eval Borrower"
-      business_name: "Eval Holdings LLC"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'MANUAL_REVIEW';
-
-  - description: Full submission — limited equity → MANUAL_REVIEW
-    vars:
-      prompt: full-submission
-      property_address: "350 Fifth Avenue"
-      zip_code: "10118"
-      property_type: Commercial
-      property_estimated_value: "200000"
-      debt_on_property: "100000"
-      borrower_name: "Eval Borrower"
-      business_name: "Eval Holdings LLC"
-    assert:
-      - type: javascript
-        value: |
-          const parsed = typeof output === 'string' ? JSON.parse(output) : output;
-          return parsed.result === 'MANUAL_REVIEW';
+tests: file://evals/screening-cases.yaml

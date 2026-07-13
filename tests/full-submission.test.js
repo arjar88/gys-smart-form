@@ -101,7 +101,6 @@ describe("full-submission handler", () => {
     callOpenAI.mockResolvedValue({
       result: "PASS",
       summary: "Worth a discovery call",
-      confidence: 92,
     });
     submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
 
@@ -117,7 +116,6 @@ describe("full-submission handler", () => {
       result: "MANUAL_REVIEW",
       reason: "Special asset type",
       summary: "Needs review",
-      confidence: 75,
     });
     submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
 
@@ -158,7 +156,6 @@ describe("full-submission handler", () => {
       result: "DECLINE",
       reason: "Primary residence",
       summary: "Not eligible",
-      confidence: 99,
     });
     submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
 

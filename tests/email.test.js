@@ -93,7 +93,6 @@ describe("formatAiReviewDetails", () => {
     const result = formatAiReviewDetails({
       reason: "Limited equity",
       summary: "Needs review",
-      confidence: 85,
       property_type_confirmed: "Commercial",
       population_found: "50,000",
       available_equity: "$150,000",
@@ -102,7 +101,6 @@ describe("formatAiReviewDetails", () => {
 
     expect(result).toContain("Reason: Limited equity");
     expect(result).toContain("Summary: Needs review");
-    expect(result).toContain("Confidence: 85%");
     expect(result).toContain("Property Type Confirmed: Commercial");
     expect(result).toContain("Population: 50,000");
     expect(result).toContain("Available Equity: $150,000");

@@ -67,9 +67,6 @@ export function formatAiReviewDetails(aiResult) {
 
   if (aiResult.reason) lines.push(`Reason: ${aiResult.reason}`);
   if (aiResult.summary) lines.push(`Summary: ${aiResult.summary}`);
-  if (aiResult.confidence != null) {
-    lines.push(`Confidence: ${aiResult.confidence}%`);
-  }
   if (aiResult.property_type_confirmed) {
     lines.push(`Property Type Confirmed: ${aiResult.property_type_confirmed}`);
   }

@@ -1,0 +1,923 @@
+# Each fixture is evaluated against the real OpenAI + web-search path.
+# expected_result and expected_reason are assertion-only variables and are not
+# included in the payload sent to the model.
+
+# ---------------------------------------------------------------------------
+# Quick review
+# ---------------------------------------------------------------------------
+
+- description: "Quick — Commercial with strong equity → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    expected_result: PASS
+
+- description: "Quick — Mixed Use with strong equity → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: "Mixed Use"
+    property_estimated_value: "800000"
+    debt_on_property: "300000"
+    expected_result: PASS
+
+- description: "Quick — Multifamily with strong equity → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "1 Market Street, San Francisco, CA"
+    zip_code: "94105"
+    property_type: Multifamily
+    property_estimated_value: "1000000"
+    debt_on_property: "450000"
+    expected_result: PASS
+
+- description: "Quick — Residential Investment with strong equity → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "200 North Spring Street, Los Angeles, CA"
+    zip_code: "90012"
+    property_type: "Residential Investment"
+    property_estimated_value: "600000"
+    debt_on_property: "250000"
+    expected_result: PASS
+
+- description: "Quick — Primary Residence always requires review"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: "Primary Residence"
+    property_estimated_value: "1000000"
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Primary residence requires manual review"
+
+- description: "Quick — Ground-Up Construction always requires review"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: "Ground-Up Construction"
+    property_estimated_value: "1000000"
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Ground-up construction requires manual review"
+
+- description: "Quick — Other property type always requires review"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Other
+    property_estimated_value: "1000000"
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Property type requires manual review"
+
+- description: "Quick — Land in high-population ZIP with strong equity → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Land
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    expected_result: PASS
+
+- description: "Quick — Land in low-population ZIP requires review"
+  vars:
+    prompt: quick-review
+    property_address: "34 Cornell Drive, Canton, NY"
+    zip_code: "13617"
+    property_type: Land
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Land requires a ZIP code population of at least 75,000"
+
+- description: "Quick — Zero property value requires review"
+  vars:
+    prompt: quick-review
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "0"
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Property value requires manual review"
+
+- description: "Quick — Blank property value requires review"
+  vars:
+    prompt: quick-review
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: ""
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Property value requires manual review"
+
+- description: "Quick — Equity one dollar above threshold → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "249999"
+    expected_result: PASS
+
+- description: "Quick — Equity exactly at $100,000 requires review"
+  vars:
+    prompt: quick-review
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "250000"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Quick — Equity one dollar below threshold requires review"
+  vars:
+    prompt: quick-review
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "250001"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Quick — Blank debt is treated as zero → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "200000"
+    debt_on_property: ""
+    expected_result: PASS
+
+- description: "Quick — N/A debt is treated as zero → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "200000"
+    debt_on_property: "N/A"
+    expected_result: PASS
+
+- description: "Quick — Explicit zero debt is treated as zero → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "200000"
+    debt_on_property: "0"
+    expected_result: PASS
+
+- description: "Quick — Debt above 70% of value requires review"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "400000"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Quick — Clearly mismatched address and ZIP requires review"
+  vars:
+    prompt: quick-review
+    property_address: "1 Market Street, San Francisco, CA"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Address does not match the submitted ZIP code"
+
+- description: "Quick — Partial street matching submitted ZIP → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    expected_result: PASS
+
+# ---------------------------------------------------------------------------
+# Full submission
+# ---------------------------------------------------------------------------
+
+- description: "Full — Commercial with strong equity → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    borrower_name: "Jordan Morgan"
+    business_name: "Morgan Holdings LLC"
+    expected_result: PASS
+
+- description: "Full — Mixed Use with strong equity → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: "Mixed Use"
+    property_estimated_value: "800000"
+    debt_on_property: "300000"
+    borrower_name: "Taylor Brooks"
+    business_name: "Brooks Property Group LLC"
+    expected_result: PASS
+
+- description: "Full — Multifamily with strong equity → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "1 Market Street, San Francisco, CA"
+    zip_code: "94105"
+    property_type: Multifamily
+    property_estimated_value: "1000000"
+    debt_on_property: "450000"
+    borrower_name: "Alex Rivera"
+    business_name: "Rivera Capital LLC"
+    expected_result: PASS
+
+- description: "Full — Residential Investment with strong equity → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "200 North Spring Street, Los Angeles, CA"
+    zip_code: "90012"
+    property_type: "Residential Investment"
+    property_estimated_value: "600000"
+    debt_on_property: "250000"
+    borrower_name: "Casey Bennett"
+    business_name: "Bennett Investments LLC"
+    expected_result: PASS
+
+- description: "Full — Primary Residence always requires review"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: "Primary Residence"
+    property_estimated_value: "1000000"
+    debt_on_property: "0"
+    borrower_name: "Jamie Parker"
+    business_name: "Parker Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Primary residence requires manual review"
+
+- description: "Full — Ground-Up Construction always requires review"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: "Ground-Up Construction"
+    property_estimated_value: "1000000"
+    debt_on_property: "0"
+    borrower_name: "Jamie Parker"
+    business_name: "Parker Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Ground-up construction requires manual review"
+
+- description: "Full — Other property type always requires review"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Other
+    property_estimated_value: "1000000"
+    debt_on_property: "0"
+    borrower_name: "Jamie Parker"
+    business_name: "Parker Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Property type requires manual review"
+
+- description: "Full — Land in high-population ZIP with strong equity → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Land
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    borrower_name: "Sam Cooper"
+    business_name: "Cooper Land LLC"
+    expected_result: PASS
+
+- description: "Full — Land in low-population ZIP requires review"
+  vars:
+    prompt: full-submission
+    property_address: "34 Cornell Drive, Canton, NY"
+    zip_code: "13617"
+    property_type: Land
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    borrower_name: "Sam Cooper"
+    business_name: "Cooper Land LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Land requires a ZIP code population of at least 75,000"
+
+- description: "Full — Zero property value requires review"
+  vars:
+    prompt: full-submission
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "0"
+    debt_on_property: "0"
+    borrower_name: "Jordan Morgan"
+    business_name: "Morgan Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Property value requires manual review"
+
+- description: "Full — Equity one dollar above threshold → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "249999"
+    borrower_name: "Jordan Morgan"
+    business_name: "Morgan Holdings LLC"
+    expected_result: PASS
+
+- description: "Full — Equity exactly at $100,000 requires review"
+  vars:
+    prompt: full-submission
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "250000"
+    borrower_name: "Jordan Morgan"
+    business_name: "Morgan Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Full — Equity one dollar below threshold requires review"
+  vars:
+    prompt: full-submission
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "250001"
+    borrower_name: "Jordan Morgan"
+    business_name: "Morgan Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Full — Blank debt is treated as zero → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "200000"
+    debt_on_property: ""
+    borrower_name: "Taylor Brooks"
+    business_name: "Brooks Property Group LLC"
+    expected_result: PASS
+
+- description: "Full — N/A debt is treated as zero → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "200000"
+    debt_on_property: "N/A"
+    borrower_name: "Taylor Brooks"
+    business_name: "Brooks Property Group LLC"
+    expected_result: PASS
+
+- description: "Full — Clearly mismatched address and ZIP requires review"
+  vars:
+    prompt: full-submission
+    property_address: "1 Market Street, San Francisco, CA"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    borrower_name: "Alex Rivera"
+    business_name: "Rivera Capital LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Address does not match the submitted ZIP code"
+
+- description: "Full — Partial street matching submitted ZIP → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    borrower_name: "Taylor Brooks"
+    business_name: "Brooks Property Group LLC"
+    expected_result: PASS
+
+# ---------------------------------------------------------------------------
+# Quick review — expanded coverage
+# ---------------------------------------------------------------------------
+
+- description: "Quick — Chicago Commercial with strong equity → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "233 South Wacker Drive, Chicago, IL"
+    zip_code: "60606"
+    property_type: Commercial
+    property_estimated_value: "1200000"
+    debt_on_property: "400000"
+    expected_result: PASS
+
+- description: "Quick — Miami Multifamily with strong equity → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "1000 Brickell Avenue, Miami, FL"
+    zip_code: "33131"
+    property_type: Multifamily
+    property_estimated_value: "900000"
+    debt_on_property: "200000"
+    expected_result: PASS
+
+- description: "Quick — Seattle Mixed Use with strong equity → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "1420 5th Avenue, Seattle, WA"
+    zip_code: "98101"
+    property_type: "Mixed Use"
+    property_estimated_value: "750000"
+    debt_on_property: "100000"
+    expected_result: PASS
+
+- description: "Quick — Boston Residential Investment with strong equity → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "1 Congress Street, Boston, MA"
+    zip_code: "02114"
+    property_type: "Residential Investment"
+    property_estimated_value: "550000"
+    debt_on_property: "50000"
+    expected_result: PASS
+
+- description: "Quick — Comma-formatted values still PASS"
+  vars:
+    prompt: quick-review
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "500,000"
+    debt_on_property: "100,000"
+    expected_result: PASS
+
+- description: "Quick — Unknown debt is treated as zero → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "200000"
+    debt_on_property: "unknown"
+    expected_result: PASS
+
+- description: "Quick — Commercial in low-population ZIP still → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "34 Cornell Drive, Canton, NY"
+    zip_code: "13617"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    expected_result: PASS
+
+- description: "Quick — Multifamily in low-population ZIP still → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "34 Cornell Drive, Canton, NY"
+    zip_code: "13617"
+    property_type: Multifamily
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    expected_result: PASS
+
+- description: "Quick — Land in another low-population ZIP requires review"
+  vars:
+    prompt: quick-review
+    property_address: "101 Main Street, Cooperstown, NY"
+    zip_code: "13326"
+    property_type: Land
+    property_estimated_value: "800000"
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Land requires a ZIP code population of at least 75,000"
+
+- description: "Quick — Land with huge equity but low population still requires review"
+  vars:
+    prompt: quick-review
+    property_address: "34 Cornell Drive, Canton, NY"
+    zip_code: "13617"
+    property_type: Land
+    property_estimated_value: "5000000"
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Land requires a ZIP code population of at least 75,000"
+
+- description: "Quick — Primary Residence ignores strong equity"
+  vars:
+    prompt: quick-review
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: "Primary Residence"
+    property_estimated_value: "5000000"
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Primary residence requires manual review"
+
+- description: "Quick — Ground-Up Construction ignores strong equity"
+  vars:
+    prompt: quick-review
+    property_address: "1 Market Street, San Francisco, CA"
+    zip_code: "94105"
+    property_type: "Ground-Up Construction"
+    property_estimated_value: "3000000"
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Ground-up construction requires manual review"
+
+- description: "Quick — Other property type ignores strong equity"
+  vars:
+    prompt: quick-review
+    property_address: "200 North Spring Street, Los Angeles, CA"
+    zip_code: "90012"
+    property_type: Other
+    property_estimated_value: "2500000"
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Property type requires manual review"
+
+- description: "Quick — Mixed Use equity exactly at $100,000 requires review"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: "Mixed Use"
+    property_estimated_value: "400000"
+    debt_on_property: "180000"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Quick — Multifamily equity one dollar above threshold → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "1 Market Street, San Francisco, CA"
+    zip_code: "94105"
+    property_type: Multifamily
+    property_estimated_value: "400000"
+    debt_on_property: "179999"
+    expected_result: PASS
+
+- description: "Quick — Residential Investment negative equity requires review"
+  vars:
+    prompt: quick-review
+    property_address: "200 North Spring Street, Los Angeles, CA"
+    zip_code: "90012"
+    property_type: "Residential Investment"
+    property_estimated_value: "300000"
+    debt_on_property: "250000"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Quick — Debt equal to 70% of value requires review"
+  vars:
+    prompt: quick-review
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "350000"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Quick — LA address with NYC ZIP requires review"
+  vars:
+    prompt: quick-review
+    property_address: "200 North Spring Street, Los Angeles, CA"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Address does not match the submitted ZIP code"
+
+- description: "Quick — Chicago address with Miami ZIP requires review"
+  vars:
+    prompt: quick-review
+    property_address: "233 South Wacker Drive, Chicago, IL"
+    zip_code: "33131"
+    property_type: Commercial
+    property_estimated_value: "800000"
+    debt_on_property: "100000"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Address does not match the submitted ZIP code"
+
+- description: "Quick — Partial street in Chicago matching ZIP → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "Wacker Drive, Chicago, IL"
+    zip_code: "60606"
+    property_type: Commercial
+    property_estimated_value: "600000"
+    debt_on_property: "100000"
+    expected_result: PASS
+
+- description: "Quick — Minimum value that clears equity with zero debt → PASS"
+  vars:
+    prompt: quick-review
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "142858"
+    debt_on_property: "0"
+    expected_result: PASS
+
+- description: "Quick — Value just below minimum for zero-debt equity requires review"
+  vars:
+    prompt: quick-review
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "142857"
+    debt_on_property: "0"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+# ---------------------------------------------------------------------------
+# Full submission — expanded coverage
+# ---------------------------------------------------------------------------
+
+- description: "Full — Chicago Commercial with strong equity → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "233 South Wacker Drive, Chicago, IL"
+    zip_code: "60606"
+    property_type: Commercial
+    property_estimated_value: "1200000"
+    debt_on_property: "400000"
+    borrower_name: "Riley Quinn"
+    business_name: "Quinn Capital LLC"
+    expected_result: PASS
+
+- description: "Full — Miami Multifamily with strong equity → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "1000 Brickell Avenue, Miami, FL"
+    zip_code: "33131"
+    property_type: Multifamily
+    property_estimated_value: "900000"
+    debt_on_property: "200000"
+    borrower_name: "Morgan Ellis"
+    business_name: "Ellis Multifamily LLC"
+    expected_result: PASS
+
+- description: "Full — Seattle Mixed Use with strong equity → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "1420 5th Avenue, Seattle, WA"
+    zip_code: "98101"
+    property_type: "Mixed Use"
+    property_estimated_value: "750000"
+    debt_on_property: "100000"
+    borrower_name: "Avery Chen"
+    business_name: "Chen Mixed Use LLC"
+    expected_result: PASS
+
+- description: "Full — Comma-formatted values still PASS"
+  vars:
+    prompt: full-submission
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "500,000"
+    debt_on_property: "100,000"
+    borrower_name: "Jordan Morgan"
+    business_name: "Morgan Holdings LLC"
+    expected_result: PASS
+
+- description: "Full — Unknown debt is treated as zero → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "200000"
+    debt_on_property: "unknown"
+    borrower_name: "Taylor Brooks"
+    business_name: "Brooks Property Group LLC"
+    expected_result: PASS
+
+- description: "Full — Commercial in low-population ZIP still → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "34 Cornell Drive, Canton, NY"
+    zip_code: "13617"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    borrower_name: "Sam Cooper"
+    business_name: "Cooper Commercial LLC"
+    expected_result: PASS
+
+- description: "Full — Land in another low-population ZIP requires review"
+  vars:
+    prompt: full-submission
+    property_address: "101 Main Street, Cooperstown, NY"
+    zip_code: "13326"
+    property_type: Land
+    property_estimated_value: "800000"
+    debt_on_property: "0"
+    borrower_name: "Sam Cooper"
+    business_name: "Cooper Land LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Land requires a ZIP code population of at least 75,000"
+
+- description: "Full — Land with huge equity but low population still requires review"
+  vars:
+    prompt: full-submission
+    property_address: "34 Cornell Drive, Canton, NY"
+    zip_code: "13617"
+    property_type: Land
+    property_estimated_value: "5000000"
+    debt_on_property: "0"
+    borrower_name: "Sam Cooper"
+    business_name: "Cooper Land LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Land requires a ZIP code population of at least 75,000"
+
+- description: "Full — Primary Residence ignores strong equity"
+  vars:
+    prompt: full-submission
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: "Primary Residence"
+    property_estimated_value: "5000000"
+    debt_on_property: "0"
+    borrower_name: "Jamie Parker"
+    business_name: "Parker Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Primary residence requires manual review"
+
+- description: "Full — Ground-Up Construction ignores strong equity"
+  vars:
+    prompt: full-submission
+    property_address: "1 Market Street, San Francisco, CA"
+    zip_code: "94105"
+    property_type: "Ground-Up Construction"
+    property_estimated_value: "3000000"
+    debt_on_property: "0"
+    borrower_name: "Jamie Parker"
+    business_name: "Parker Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Ground-up construction requires manual review"
+
+- description: "Full — Other property type ignores strong equity"
+  vars:
+    prompt: full-submission
+    property_address: "200 North Spring Street, Los Angeles, CA"
+    zip_code: "90012"
+    property_type: Other
+    property_estimated_value: "2500000"
+    debt_on_property: "0"
+    borrower_name: "Jamie Parker"
+    business_name: "Parker Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Property type requires manual review"
+
+- description: "Full — Mixed Use equity exactly at $100,000 requires review"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: "Mixed Use"
+    property_estimated_value: "400000"
+    debt_on_property: "180000"
+    borrower_name: "Taylor Brooks"
+    business_name: "Brooks Property Group LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Full — Multifamily equity one dollar above threshold → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "1 Market Street, San Francisco, CA"
+    zip_code: "94105"
+    property_type: Multifamily
+    property_estimated_value: "400000"
+    debt_on_property: "179999"
+    borrower_name: "Alex Rivera"
+    business_name: "Rivera Capital LLC"
+    expected_result: PASS
+
+- description: "Full — Residential Investment negative equity requires review"
+  vars:
+    prompt: full-submission
+    property_address: "200 North Spring Street, Los Angeles, CA"
+    zip_code: "90012"
+    property_type: "Residential Investment"
+    property_estimated_value: "300000"
+    debt_on_property: "250000"
+    borrower_name: "Casey Bennett"
+    business_name: "Bennett Investments LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Full — Debt equal to 70% of value requires review"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "350000"
+    borrower_name: "Taylor Brooks"
+    business_name: "Brooks Property Group LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"
+
+- description: "Full — LA address with NYC ZIP requires review"
+  vars:
+    prompt: full-submission
+    property_address: "200 North Spring Street, Los Angeles, CA"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "500000"
+    debt_on_property: "100000"
+    borrower_name: "Casey Bennett"
+    business_name: "Bennett Investments LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Address does not match the submitted ZIP code"
+
+- description: "Full — Blank property value requires review"
+  vars:
+    prompt: full-submission
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: ""
+    debt_on_property: "0"
+    borrower_name: "Jordan Morgan"
+    business_name: "Morgan Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Property value requires manual review"
+
+- description: "Full — Explicit zero debt is treated as zero → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "2700 Broadway, New York, NY"
+    zip_code: "10025"
+    property_type: Commercial
+    property_estimated_value: "200000"
+    debt_on_property: "0"
+    borrower_name: "Taylor Brooks"
+    business_name: "Brooks Property Group LLC"
+    expected_result: PASS
+
+- description: "Full — Partial street in Chicago matching ZIP → PASS"
+  vars:
+    prompt: full-submission
+    property_address: "Wacker Drive, Chicago, IL"
+    zip_code: "60606"
+    property_type: Commercial
+    property_estimated_value: "600000"
+    debt_on_property: "100000"
+    borrower_name: "Riley Quinn"
+    business_name: "Quinn Capital LLC"
+    expected_result: PASS
+
+- description: "Full — Value just below minimum for zero-debt equity requires review"
+  vars:
+    prompt: full-submission
+    property_address: "350 Fifth Avenue, New York, NY"
+    zip_code: "10118"
+    property_type: Commercial
+    property_estimated_value: "142857"
+    debt_on_property: "0"
+    borrower_name: "Jordan Morgan"
+    business_name: "Morgan Holdings LLC"
+    expected_result: MANUAL_REVIEW
+    expected_reason: "Limited available equity"

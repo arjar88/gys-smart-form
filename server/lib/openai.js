@@ -12,7 +12,6 @@ export const QUICK_REVIEW_OUTPUT_SCHEMA = {
       type: "string",
       enum: ["REQUEST_FULL_SUBMISSION", "GABE_REVIEW"],
     },
-    confidence: { type: "number" },
     summary: { type: "string" },
     reason: { type: "string" },
     population_found: { type: "string" },
@@ -22,7 +21,6 @@ export const QUICK_REVIEW_OUTPUT_SCHEMA = {
   required: [
     "result",
     "next_step",
-    "confidence",
     "summary",
     "reason",
     "population_found",
@@ -37,7 +35,6 @@ export const FULL_SUBMISSION_OUTPUT_SCHEMA = {
   properties: {
     result: { type: "string", enum: ["PASS", "MANUAL_REVIEW"] },
     discovery_call_recommendation: { type: "boolean" },
-    confidence: { type: "number" },
     summary: { type: "string" },
     reason: { type: "string" },
     population_found: { type: "string" },
@@ -47,7 +44,6 @@ export const FULL_SUBMISSION_OUTPUT_SCHEMA = {
   required: [
     "result",
     "discovery_call_recommendation",
-    "confidence",
     "summary",
     "reason",
     "population_found",
@@ -85,6 +81,166 @@ function extractWebSearchCalls(data) {
       actionType: item.action?.type,
       query: item.action?.query,
     }));
+}
+
+const ADDRESS_REVIEW_REASONS = new Set([
+  "Address does not match the submitted ZIP code.",
+  "Unable to verify address and ZIP code.",
+]);
+
+const PROPERTY_TYPE_REASONS = {
+  "Primary Residence": "Primary residence requires manual review.",
+  "Ground-Up Construction": "Ground-up construction requires manual review.",
+  Other: "Property type requires manual review.",
+};
+
+const EQUITY_PROPERTY_TYPES = new Set([
+  "Commercial",
+  "Mixed Use",
+  "Multifamily",
+  "Residential Investment",
+  "Land",
+]);
+
+function formatDollars(amount) {
+  const absolute = Math.abs(amount).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  });
+  return `${amount < 0 ? "-" : ""}$${absolute}`;
+}
+
+function parseZipPopulation(value, zipCode) {
+  const text = String(value || "");
+  const commaFormatted = text.match(/\b\d{1,3}(?:,\d{3})+\b/);
+  if (commaFormatted) {
+    return Number(commaFormatted[0].replaceAll(",", ""));
+  }
+
+  const candidates = text.match(/\b\d{4,7}\b/g) || [];
+  const population = candidates
+    .map(Number)
+    .find(
+      (number) =>
+        String(number) !== String(zipCode) && (number < 1900 || number > 2100)
+    );
+  return population ?? null;
+}
+
+function withDecision(decision, result, reason, availableEquity = "") {
+  const isQuickReview = Object.hasOwn(decision, "next_step");
+  return {
+    ...decision,
+    result,
+    ...(isQuickReview
+      ? {
+          next_step:
+            result === "PASS" ? "REQUEST_FULL_SUBMISSION" : "GABE_REVIEW",
+        }
+      : { discovery_call_recommendation: result === "PASS" }),
+    summary:
+      result === "PASS"
+        ? `Address and ZIP match, property type qualifies, and available equity is ${availableEquity}.`
+        : reason,
+    reason,
+    available_equity: availableEquity,
+    flags: [],
+  };
+}
+
+/**
+ * The model performs the web-dependent address and population checks. Enforce
+ * deterministic screening rules in code so contradictory model prose cannot
+ * reverse property-type, value, debt, population, or equity decisions.
+ */
+export function enforceScreeningDecision(decision, payload) {
+  const propertyType = payload?.property_type;
+  if (!propertyType || payload?.property_estimated_value === undefined) {
+    return decision;
+  }
+
+  if (ADDRESS_REVIEW_REASONS.has(decision.reason)) {
+    return withDecision(decision, "MANUAL_REVIEW", decision.reason);
+  }
+
+  const propertyTypeReason = PROPERTY_TYPE_REASONS[propertyType];
+  if (propertyTypeReason) {
+    return withDecision(decision, "MANUAL_REVIEW", propertyTypeReason);
+  }
+  if (!EQUITY_PROPERTY_TYPES.has(propertyType)) {
+    return withDecision(
+      decision,
+      "MANUAL_REVIEW",
+      "Property type requires manual review."
+    );
+  }
+
+  if (propertyType === "Land") {
+    const population = parseZipPopulation(
+      decision.population_found,
+      payload.zip_code
+    );
+    if (population === null) {
+      return withDecision(
+        decision,
+        "MANUAL_REVIEW",
+        "Unable to verify ZIP code population."
+      );
+    }
+    if (population < 75000) {
+      return withDecision(
+        decision,
+        "MANUAL_REVIEW",
+        "Land requires a ZIP code population of at least 75,000."
+      );
+    }
+  }
+
+  const valueText = String(payload.property_estimated_value ?? "").trim();
+  const propertyValue = Number(valueText.replaceAll(",", ""));
+  if (!valueText || !Number.isFinite(propertyValue) || propertyValue <= 0) {
+    return withDecision(
+      decision,
+      "MANUAL_REVIEW",
+      "Property value requires manual review."
+    );
+  }
+
+  const debtText = String(payload.debt_on_property ?? "").trim();
+  const normalizedDebt = debtText.toLowerCase();
+  const debtIsZero =
+    !debtText ||
+    normalizedDebt === "n/a" ||
+    normalizedDebt === "unknown" ||
+    Number(debtText.replaceAll(",", "")) === 0;
+  const currentDebt = debtIsZero
+    ? 0
+    : Number(debtText.replaceAll(",", ""));
+
+  if (!Number.isFinite(currentDebt)) {
+    return withDecision(
+      decision,
+      "MANUAL_REVIEW",
+      "Limited available equity."
+    );
+  }
+
+  const availableEquity = propertyValue * 0.7 - currentDebt;
+  const formattedEquity = formatDollars(availableEquity);
+  if (availableEquity <= 100000) {
+    return withDecision(
+      decision,
+      "MANUAL_REVIEW",
+      "Limited available equity.",
+      formattedEquity
+    );
+  }
+
+  return withDecision(
+    decision,
+    "PASS",
+    "Available equity exceeds $100,000.",
+    formattedEquity
+  );
 }
 
 export async function callOpenAI(
@@ -157,12 +313,11 @@ export async function callOpenAI(
     throw new Error("No response returned from OpenAI.");
   }
 
-  const parsed = JSON.parse(content);
+  const parsed = enforceScreeningDecision(JSON.parse(content), userPayload);
 
   log.info("OpenAI request succeeded", {
     durationMs,
     result: parsed.result,
-    confidence: parsed.confidence,
   });
 
   log.info("AI decision detail", { durationMs, decision: parsed });

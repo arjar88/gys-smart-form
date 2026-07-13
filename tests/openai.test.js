@@ -21,7 +21,6 @@ describe("callOpenAI", () => {
         output_text: JSON.stringify({
           result: "PASS",
           discovery_call_recommendation: true,
-          confidence: 95,
           summary: "Looks good",
           reason: "Strong equity",
           population_found: "50,000",
@@ -71,7 +70,6 @@ describe("callOpenAI", () => {
                 text: JSON.stringify({
                   result: "PASS",
                   next_step: "REQUEST_FULL_SUBMISSION",
-                  confidence: 90,
                   summary: "Good deal",
                   reason: "Strong equity",
                   population_found: "60,000",
@@ -96,5 +94,113 @@ describe("callOpenAI", () => {
     );
 
     expect(result.result).toBe("PASS");
+  });
+});
+
+describe("enforceScreeningDecision", () => {
+  const quickPass = {
+    result: "PASS",
+    next_step: "REQUEST_FULL_SUBMISSION",
+    summary: "Model summary",
+    reason: "Model reason",
+    population_found: "Not applicable.",
+    available_equity: "$0",
+    flags: ["model flag"],
+  };
+
+  it("overrides contradictory equity decisions and preserves the boundary", async () => {
+    const { enforceScreeningDecision } = await import(
+      "../server/lib/openai.js"
+    );
+    const result = enforceScreeningDecision(quickPass, {
+      property_type: "Commercial",
+      property_estimated_value: "500000",
+      debt_on_property: "250000",
+    });
+
+    expect(result).toMatchObject({
+      result: "MANUAL_REVIEW",
+      next_step: "GABE_REVIEW",
+      reason: "Limited available equity.",
+      available_equity: "$100,000",
+    });
+  });
+
+  it("treats blank debt as zero and corrects a false manual review", async () => {
+    const { enforceScreeningDecision } = await import(
+      "../server/lib/openai.js"
+    );
+    const result = enforceScreeningDecision(
+      {
+        ...quickPass,
+        result: "MANUAL_REVIEW",
+        next_step: "GABE_REVIEW",
+        reason: "Limited available equity.",
+      },
+      {
+        property_type: "Commercial",
+        property_estimated_value: "200000",
+        debt_on_property: "",
+      }
+    );
+
+    expect(result).toMatchObject({
+      result: "PASS",
+      next_step: "REQUEST_FULL_SUBMISSION",
+      reason: "Available equity exceeds $100,000.",
+      available_equity: "$140,000",
+    });
+  });
+
+  it("enforces a numeric Land ZIP population below the threshold", async () => {
+    const { enforceScreeningDecision } = await import(
+      "../server/lib/openai.js"
+    );
+    const result = enforceScreeningDecision(
+      {
+        ...quickPass,
+        population_found: "Approximately 12,000 residents in ZIP 13617.",
+      },
+      {
+        property_type: "Land",
+        property_estimated_value: "500000",
+        debt_on_property: "100000",
+        zip_code: "13617",
+      }
+    );
+
+    expect(result).toMatchObject({
+      result: "MANUAL_REVIEW",
+      next_step: "GABE_REVIEW",
+      reason: "Land requires a ZIP code population of at least 75,000.",
+    });
+  });
+
+  it("uses full-submission recommendation mapping", async () => {
+    const { enforceScreeningDecision } = await import(
+      "../server/lib/openai.js"
+    );
+    const result = enforceScreeningDecision(
+      {
+        result: "PASS",
+        discovery_call_recommendation: true,
+        summary: "Model summary",
+        reason: "Model reason",
+        population_found: "Not applicable.",
+        available_equity: "$0",
+        flags: [],
+      },
+      {
+        property_type: "Primary Residence",
+        property_estimated_value: "1000000",
+        debt_on_property: "0",
+      }
+    );
+
+    expect(result).toMatchObject({
+      result: "MANUAL_REVIEW",
+      discovery_call_recommendation: false,
+      reason: "Primary residence requires manual review.",
+    });
   });
 });

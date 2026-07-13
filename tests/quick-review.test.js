@@ -76,7 +76,6 @@ describe("quick-review handler", () => {
     callOpenAI.mockResolvedValue({
       result: "PASS",
       summary: "Looks good",
-      confidence: 95,
     });
 
     const res = createMockRes();
@@ -93,7 +92,6 @@ describe("quick-review handler", () => {
       result: "MANUAL_REVIEW",
       reason: "Limited equity",
       summary: "Needs Gabe review",
-      confidence: 80,
     });
 
     const res = createMockRes();
@@ -136,7 +134,6 @@ describe("quick-review handler", () => {
       result: "DECLINE",
       reason: "Primary residence",
       summary: "Not eligible",
-      confidence: 99,
     });
 
     const res = createMockRes();
