@@ -70,15 +70,26 @@ defaultTest:
       value: |
         const parsed = typeof output === 'string' ? JSON.parse(output) : output;
         const expectedPass = context.vars.expected_result === 'PASS';
+        const isFull = context.vars.prompt === 'full-submission';
         if (expectedPass) {
           const expectedMessage = parsed.summary || 'Looks good';
-          const pass =
+          const hasUi =
             parsed.user_facing_message === expectedMessage &&
             parsed.email_review_line === null;
+          const emailOk = isFull
+            ? typeof parsed.outbound_email_subject === 'string' &&
+              typeof parsed.outbound_email_body === 'string' &&
+              parsed.outbound_email_body.includes('Gabe') &&
+              [1, 2, 3, 4].includes(parsed.outbound_email_template_id)
+            : parsed.outbound_email_subject === null &&
+              parsed.outbound_email_body === null;
+          const pass = hasUi && emailOk;
           return {
             pass,
             score: pass ? 1 : 0,
-            reason: 'PASS must expose summary to the response and no review email line',
+            reason: isFull
+              ? 'Full PASS must expose summary and a Gabe discovery-call email preview'
+              : 'Quick PASS must expose summary and send no email',
           };
         }
         const expectedReason =
@@ -87,11 +98,14 @@ defaultTest:
           `Property 1 (${context.vars.property_address || 'N/A'}): ${expectedReason}`;
         const pass =
           parsed.user_facing_message === expectedLine &&
-          parsed.email_review_line === expectedLine;
+          parsed.email_review_line === expectedLine &&
+          typeof parsed.outbound_email_subject === 'string' &&
+          typeof parsed.outbound_email_body === 'string' &&
+          parsed.outbound_email_body.includes('Gabe');
         return {
           pass,
           score: pass ? 1 : 0,
-          reason: 'MANUAL_REVIEW response and email line must match the production format',
+          reason: 'MANUAL_REVIEW must keep API review line and preview the Gabe email',
         };
     - type: javascript
       value: |

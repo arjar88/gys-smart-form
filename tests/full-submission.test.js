@@ -29,6 +29,7 @@ import handler from "../api/full-submission.js";
 import { callOpenAI } from "../server/lib/openai.js";
 import { submitToPipedrive } from "../server/lib/pipedrive.js";
 import { sendEmail, WORKER_EMAIL } from "../server/lib/email.js";
+import { CALENDLY_URL } from "../server/lib/gabe-emails.js";
 
 const samplePayload = {
   property_address: "456 Oak Ave",
@@ -97,7 +98,7 @@ describe("full-submission handler", () => {
     expect(waitUntil).toHaveBeenCalledOnce();
   });
 
-  it("submits to Pipedrive on PASS without sending email", async () => {
+  it("submits to Pipedrive on PASS and sends discovery-call email", async () => {
     callOpenAI.mockResolvedValue({
       result: "PASS",
       summary: "Worth a discovery call",
@@ -108,13 +109,24 @@ describe("full-submission handler", () => {
 
     expect(submitToPipedrive).toHaveBeenCalledOnce();
     expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload);
-    expect(sendEmail).not.toHaveBeenCalled();
+    expect(sendEmail).toHaveBeenCalledOnce();
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["jane@example.com"],
+        cc: ["john@example.com"],
+      })
+    );
+    const email = sendEmail.mock.calls[0][0];
+    expect(email.subject).toContain("Oak Holdings LLC");
+    expect(email.text).toContain("Hey John and Jane,");
+    expect(email.text).toContain(CALENDLY_URL);
+    expect(email.text).toContain("Gabe\nGYS Mortgage");
   });
 
-  it("sends manual review email to RP and CCs borrower on MANUAL_REVIEW", async () => {
+  it("sends Gabe-style manual review email to RP and CCs borrower on MANUAL_REVIEW", async () => {
     callOpenAI.mockResolvedValue({
       result: "MANUAL_REVIEW",
-      reason: "Special asset type",
+      reason: "Property type requires manual review.",
       summary: "Needs review",
     });
     submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
@@ -129,7 +141,7 @@ describe("full-submission handler", () => {
           label: "Property 1",
           address: "456 Oak Ave",
           result: "MANUAL_REVIEW",
-          reason: "Special asset type",
+          reason: "Property type requires manual review.",
         },
       ],
     });
@@ -138,23 +150,21 @@ describe("full-submission handler", () => {
       expect.objectContaining({
         to: ["jane@example.com"],
         cc: ["john@example.com"],
-        subject: "GYS Mortgage — Deal Submission Under Review",
+        subject: "Full Submission — 456 Oak Ave",
       })
     );
-    expect(sendEmail.mock.calls[0][0].text).toContain(
-      "The following property requires review:"
-    );
-    expect(sendEmail.mock.calls[0][0].text).toContain(
-      "Property 1 (456 Oak Ave): Special asset type"
-    );
-    expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
-    expect(sendEmail.mock.calls[0][0].text).toContain("John Borrower");
+    const emailText = sendEmail.mock.calls[0][0].text;
+    expect(emailText).toContain("Hey John and Jane,");
+    expect(emailText).toContain("Please reply all and let me know.");
+    expect(emailText).toContain("Gabe\nGYS Mortgage");
+    expect(emailText).not.toContain("The following property requires review:");
+    expect(emailText).not.toContain("GYS Mortgage Team");
   });
 
   it("routes DECLINE to potential lead and review email instead of email-only", async () => {
     callOpenAI.mockResolvedValue({
       result: "DECLINE",
-      reason: "Primary residence",
+      reason: "Primary residence requires manual review.",
       summary: "Not eligible",
     });
     submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
@@ -169,7 +179,7 @@ describe("full-submission handler", () => {
           label: "Property 1",
           address: "456 Oak Ave",
           result: "DECLINE",
-          reason: "Primary residence",
+          reason: "Primary residence requires manual review.",
         },
       ],
     });
@@ -178,10 +188,11 @@ describe("full-submission handler", () => {
       expect.objectContaining({
         to: ["jane@example.com"],
         cc: ["john@example.com"],
-        subject: "GYS Mortgage — Deal Submission Under Review",
-        text: expect.stringContaining("Property 1 (456 Oak Ave): Primary residence"),
+        subject: "Full Submission — 456 Oak Ave",
+        text: expect.stringContaining("primary residence"),
       })
     );
+    expect(sendEmail.mock.calls[0][0].text).toContain("Please reply all");
     expect(sendEmail.mock.calls[0][0].text).not.toContain("unable to move forward");
   });
 
@@ -251,7 +262,8 @@ describe("full-submission handler", () => {
 
     expect(callOpenAI).toHaveBeenCalledTimes(2);
     expect(submitToPipedrive).toHaveBeenCalledWith(payloadWithAdditional);
-    expect(sendEmail).not.toHaveBeenCalled();
+    expect(sendEmail).toHaveBeenCalledOnce();
+    expect(sendEmail.mock.calls[0][0].text).toContain(CALENDLY_URL);
   });
 
   it("routes to manual review when one additional property is flagged", async () => {
@@ -259,7 +271,7 @@ describe("full-submission handler", () => {
       .mockResolvedValueOnce({ result: "PASS", summary: "Approved" })
       .mockResolvedValueOnce({
         result: "MANUAL_REVIEW",
-        reason: "Limited available equity",
+        reason: "Limited available equity.",
       });
     submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
 
@@ -286,13 +298,15 @@ describe("full-submission handler", () => {
           label: "Property 2",
           address: "789 Pine Rd",
           result: "MANUAL_REVIEW",
-          reason: "Limited available equity",
+          reason: "Limited available equity.",
         },
       ],
     });
-    expect(sendEmail.mock.calls[0][0].text).toContain(
-      "Property 2 (789 Pine Rd): Limited available equity"
+    expect(sendEmail.mock.calls[0][0].subject).toBe(
+      "Full Submission — 789 Pine Rd"
     );
-    expect(sendEmail.mock.calls[0][0].text).toContain("Additional Properties (1):");
+    expect(sendEmail.mock.calls[0][0].text).toContain("not be enough equity");
+    expect(sendEmail.mock.calls[0][0].text).toContain("Hey John and Jane,");
+    expect(sendEmail.mock.calls[0][0].text).not.toContain("Additional Properties");
   });
 });

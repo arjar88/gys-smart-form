@@ -87,10 +87,10 @@ describe("quick-review handler", () => {
     expect(submitToPipedrive).not.toHaveBeenCalled();
   });
 
-  it("sends manual review email to RP only on MANUAL_REVIEW", async () => {
+  it("sends Gabe-style manual review email to RP only on MANUAL_REVIEW", async () => {
     callOpenAI.mockResolvedValue({
       result: "MANUAL_REVIEW",
-      reason: "Limited equity",
+      reason: "Limited available equity.",
       summary: "Needs Gabe review",
     });
 
@@ -99,19 +99,24 @@ describe("quick-review handler", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.result).toBe("MANUAL_REVIEW");
-    expect(res.body.reason).toContain("Property 1 (123 Main St): Limited equity");
+    expect(res.body.reason).toContain(
+      "Property 1 (123 Main St): Limited available equity."
+    );
     expect(sendEmail).toHaveBeenCalledOnce();
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: ["jane@example.com"],
         cc: [],
-        subject: "GYS Mortgage — Your Quick Review Requires Manual Review",
+        subject: "Quick Review — 123 Main St",
       })
     );
-    expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
-    expect(sendEmail.mock.calls[0][0].text).toContain("123 Main St");
-    expect(sendEmail.mock.calls[0][0].text).toContain("10001");
-    expect(sendEmail.mock.calls[0][0].text).toContain("The following property requires review:");
+    const emailText = sendEmail.mock.calls[0][0].text;
+    expect(emailText).toContain("Hey Jane,");
+    expect(emailText).toContain("not be enough equity");
+    expect(emailText).toContain("Are those numbers correct?");
+    expect(emailText).toContain("Gabe\nGYS Mortgage");
+    expect(emailText).not.toContain("GYS Mortgage Team");
+    expect(emailText).not.toContain("The following property requires review:");
     expect(waitUntil).toHaveBeenCalledOnce();
     expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload, {
       stageId: MANUAL_REVIEW_STAGE_ID,
@@ -120,7 +125,7 @@ describe("quick-review handler", () => {
           label: "Property 1",
           address: "123 Main St",
           result: "MANUAL_REVIEW",
-          reason: "Limited equity",
+          reason: "Limited available equity.",
           summary: "Needs Gabe review",
         },
       ],
@@ -132,7 +137,7 @@ describe("quick-review handler", () => {
   it("folds DECLINE into manual review (no separate decline path)", async () => {
     callOpenAI.mockResolvedValue({
       result: "DECLINE",
-      reason: "Primary residence",
+      reason: "Primary residence requires manual review.",
       summary: "Not eligible",
     });
 
@@ -141,17 +146,19 @@ describe("quick-review handler", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.result).toBe("MANUAL_REVIEW");
-    expect(res.body.reason).toContain("Property 1 (123 Main St): Primary residence");
+    expect(res.body.reason).toContain(
+      "Property 1 (123 Main St): Primary residence requires manual review."
+    );
     expect(sendEmail).toHaveBeenCalledOnce();
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: ["jane@example.com"],
         cc: [],
-        subject: "GYS Mortgage — Your Quick Review Requires Manual Review",
-        text: expect.stringContaining("requires a manual review"),
+        subject: "Quick Review — 123 Main St",
+        text: expect.stringContaining("primary residence"),
       })
     );
-    expect(sendEmail.mock.calls[0][0].text).not.toContain("--- AI Review ---");
+    expect(sendEmail.mock.calls[0][0].text).toContain("Gabe\nGYS Mortgage");
     expect(submitToPipedrive).toHaveBeenCalledOnce();
   });
 
@@ -222,7 +229,7 @@ describe("quick-review handler", () => {
     expect(submitToPipedrive).not.toHaveBeenCalled();
   });
 
-  it("returns MANUAL_REVIEW and sends email with flagged property details when one additional property fails", async () => {
+  it("returns MANUAL_REVIEW and emails Gabe-style note for the flagged additional property", async () => {
     const multiPayload = {
       ...samplePayload,
       additional_properties: [
@@ -240,7 +247,7 @@ describe("quick-review handler", () => {
       .mockResolvedValueOnce({ result: "PASS", summary: "Good primary" })
       .mockResolvedValueOnce({
         result: "MANUAL_REVIEW",
-        reason: "Limited available equity",
+        reason: "Limited available equity.",
       });
 
     const res = createMockRes();
@@ -248,14 +255,18 @@ describe("quick-review handler", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.result).toBe("MANUAL_REVIEW");
-    expect(res.body.reason).toContain("Property 2 (456 Oak Ave): Limited available equity");
+    expect(res.body.reason).toContain(
+      "Property 2 (456 Oak Ave): Limited available equity."
+    );
 
     expect(sendEmail).toHaveBeenCalledOnce();
+    expect(sendEmail.mock.calls[0][0].subject).toBe(
+      "Quick Review — 456 Oak Ave"
+    );
     const emailText = sendEmail.mock.calls[0][0].text;
-    expect(emailText).toContain("The following property requires review:");
-    expect(emailText).toContain("Property 2 (456 Oak Ave): Limited available equity");
-    expect(emailText).toContain("Additional Properties (1):");
-    expect(emailText).toContain("Property 2: 456 Oak Ave");
+    expect(emailText).toContain("Hey Jane,");
+    expect(emailText).toContain("not be enough equity");
+    expect(emailText).not.toContain("Additional Properties");
     expect(submitToPipedrive).toHaveBeenCalledOnce();
   });
 });

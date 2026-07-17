@@ -88,7 +88,9 @@ npm run eval:view
 
 Eval history is stored in `.promptfoo/` (gitignored). Cases assert on `result` (`PASS` / `MANUAL_REVIEW`) for property-type rules, equity thresholds, land population, and address/ZIP mismatch. Each run hits the live OpenAI API and incurs cost.
 
-Each eval output also includes `user_facing_message` (and `email_review_line` on fails) — the same reason text the form/API returns and the review email would show the referral partner.
+Each eval output also includes:
+- `user_facing_message` / `email_review_line` — API/rejection UI text
+- `outbound_email_subject` / `outbound_email_body` — Gabe Resend email preview (`null` on quick-review PASS; full-submission PASS also includes `outbound_email_template_id` 1–4)
 
 Prompts live in [`server/lib/prompts/`](server/lib/prompts/) so evals and API routes share the same text.
 

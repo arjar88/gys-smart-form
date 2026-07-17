@@ -3,10 +3,10 @@ import { callOpenAI, QUICK_REVIEW_OUTPUT_SCHEMA } from "../server/lib/openai.js"
 import {
   FROM_EMAIL,
   WORKER_EMAIL,
-  formatPropertyDetails,
   formatReviewBreakdown,
   sendEmail,
 } from "../server/lib/email.js";
+import { buildQuickManualReviewEmail } from "../server/lib/gabe-emails.js";
 import { submitToPipedrive } from "../server/lib/pipedrive.js";
 import { MANUAL_REVIEW_STAGE_ID } from "../server/lib/pipedrive-deals.js";
 import { createLogger } from "../server/lib/logger.js";
@@ -42,16 +42,12 @@ function buildQuickReviewProperties(payload) {
 
 async function sendRejectionEmail(payload, flagged) {
   const rpEmail = payload.referral_partner_email;
-  const rpName = payload.referral_partner_name || "there";
-  const propertyDetails = formatPropertyDetails(payload);
-  const reviewExplanation = formatReviewBreakdown(flagged);
-  const flaggedCount = (flagged || []).length;
-  const propertyWord = flaggedCount === 1 ? "property" : "properties";
-  const reviewVerb = flaggedCount === 1 ? "requires" : "require";
-
-  const subject = "GYS Mortgage — Your Quick Review Requires Manual Review";
-
-  const bodyText = `Hi ${rpName},\n\nThank you for submitting your deal for a quick review.\n\nYour submission requires a manual review before we can proceed. Our team will be in touch shortly to discuss next steps.\n\nThe following ${propertyWord} ${reviewVerb} review:\n${reviewExplanation}\n\n${propertyDetails}\n\nIf you have any questions, please reply to this email.\n\nGYS Mortgage Team`;
+  const primary = flagged?.[0] || {};
+  const { subject, text } = buildQuickManualReviewEmail({
+    payload,
+    reason: primary.reason,
+    address: primary.address || payload.property_address,
+  });
 
   const toAddresses = rpEmail ? [rpEmail] : [WORKER_EMAIL];
 
@@ -60,7 +56,7 @@ async function sendRejectionEmail(payload, flagged) {
     to: toAddresses,
     cc: [],
     subject,
-    text: bodyText,
+    text,
   });
 }
 

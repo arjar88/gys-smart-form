@@ -6,10 +6,13 @@ import {
 import {
   FROM_EMAIL,
   WORKER_EMAIL,
-  formatPropertyDetails,
-  formatReviewBreakdown,
   sendEmail,
 } from "../server/lib/email.js";
+import {
+  buildFullManualReviewEmail,
+  buildFullPassEmail,
+  pickPassTemplateId,
+} from "../server/lib/gabe-emails.js";
 import { submitToPipedrive } from "../server/lib/pipedrive.js";
 import { POTENTIAL_LEAD_STAGE_ID } from "../server/lib/pipedrive-deals.js";
 import { createLogger } from "../server/lib/logger.js";
@@ -77,28 +80,13 @@ async function screenAllProperties(payload) {
 
 async function sendWorkerReviewEmail(payload, flagged) {
   const rpEmail = payload.referral_partner_email;
-  const rpName = payload.referral_partner_name || "there";
   const borrowerEmail = payload.borrower_email;
-  const propertyDetails = formatPropertyDetails(payload);
-  const reviewExplanation = formatReviewBreakdown(flagged);
-  const propertyWord = flagged.length === 1 ? "property" : "properties";
-  const reviewVerb = flagged.length === 1 ? "requires" : "require";
-
-  const bodyText = `Hi ${rpName},
-
-Thank you for your submission to GYS Mortgage.
-
-Your deal requires a manual review by our team. We will be in touch shortly to discuss next steps.
-
-The following ${propertyWord} ${reviewVerb} review:
-${reviewExplanation}
-
-${propertyDetails}
-Borrower: ${payload.borrower_name || "N/A"}
-
-If you have any questions, please reply to this email.
-
-GYS Mortgage Team`;
+  const primary = flagged?.[0] || {};
+  const { subject, text } = buildFullManualReviewEmail({
+    payload,
+    reason: primary.reason,
+    address: primary.address || payload.property_address,
+  });
 
   const toAddresses = rpEmail ? [rpEmail] : [WORKER_EMAIL];
   const ccAddresses = borrowerEmail ? [borrowerEmail] : [];
@@ -107,8 +95,26 @@ GYS Mortgage Team`;
     from: FROM_EMAIL,
     to: toAddresses,
     cc: ccAddresses,
-    subject: "GYS Mortgage — Deal Submission Under Review",
-    text: bodyText,
+    subject,
+    text,
+  });
+}
+
+async function sendPassEmail(payload) {
+  const rpEmail = payload.referral_partner_email;
+  const borrowerEmail = payload.borrower_email;
+  const templateId = pickPassTemplateId(Date.now());
+  const { subject, text } = buildFullPassEmail({ payload, templateId });
+
+  const toAddresses = rpEmail ? [rpEmail] : [WORKER_EMAIL];
+  const ccAddresses = borrowerEmail ? [borrowerEmail] : [];
+
+  await sendEmail({
+    from: FROM_EMAIL,
+    to: toAddresses,
+    cc: ccAddresses,
+    subject,
+    text,
   });
 }
 
@@ -128,10 +134,11 @@ async function processFullSubmission(payload) {
     });
 
     if (allPass) {
-      log.info("PASS — sending to Pipedrive (no Resend email on pass)");
+      log.info("PASS — sending to Pipedrive and discovery-call email");
       const pipedriveResult = await submitToPipedrive(payload);
+      await sendPassEmail(payload);
       log.info("Background processing complete", {
-        action: "pipedrive",
+        action: "pipedrive+resend",
         dealId: pipedriveResult.dealId,
       });
     } else {

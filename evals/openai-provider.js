@@ -5,6 +5,12 @@ import {
   QUICK_REVIEW_OUTPUT_SCHEMA,
   FULL_SUBMISSION_OUTPUT_SCHEMA,
 } from "../server/lib/openai.js";
+import {
+  buildFullManualReviewEmail,
+  buildFullPassEmail,
+  buildQuickManualReviewEmail,
+  pickPassTemplateId,
+} from "../server/lib/gabe-emails.js";
 import { QUICK_REVIEW_SYSTEM_PROMPT } from "../server/lib/prompts/quick-review.js";
 import { FULL_SUBMISSION_SYSTEM_PROMPT } from "../server/lib/prompts/full-submission.js";
 
@@ -56,6 +62,7 @@ function buildPayload(vars) {
     property_type: vars.property_type,
     property_estimated_value: vars.property_estimated_value,
     debt_on_property: vars.debt_on_property,
+    referral_partner_name: vars.referral_partner_name ?? "Eval Partner",
   };
 
   if (vars.prompt === "full-submission") {
@@ -66,22 +73,73 @@ function buildPayload(vars) {
   return payload;
 }
 
+function stableTemplateSeed(address) {
+  const text = String(address || "");
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
 /**
- * Mirrors what production surfaces to the RP:
- * - PASS: summary shown after quick review
- * - MANUAL_REVIEW: reason used in the API response + email review line
+ * Preview the Resend email production would send for this decision.
+ * Quick PASS sends nothing; everything else uses Gabe templates.
+ */
+function buildOutboundEmailPreview(decision, vars, payload) {
+  const address = vars.property_address || "N/A";
+  const reason =
+    decision.reason || decision.summary || "Requires manual review.";
+  const isFull = vars.prompt === "full-submission";
+
+  if (decision.result === "PASS") {
+    if (!isFull) {
+      return {
+        outbound_email_subject: null,
+        outbound_email_body: null,
+        outbound_email_template_id: null,
+      };
+    }
+
+    const templateId = pickPassTemplateId(stableTemplateSeed(address));
+    const email = buildFullPassEmail({ payload, templateId });
+    return {
+      outbound_email_subject: email.subject,
+      outbound_email_body: email.text,
+      outbound_email_template_id: templateId,
+    };
+  }
+
+  const email = isFull
+    ? buildFullManualReviewEmail({ payload, reason, address })
+    : buildQuickManualReviewEmail({ payload, reason, address });
+
+  return {
+    outbound_email_subject: email.subject,
+    outbound_email_body: email.text,
+    outbound_email_template_id: null,
+  };
+}
+
+/**
+ * Mirrors what production surfaces:
+ * - user_facing_message / email_review_line: API/rejection UI text
+ * - outbound_email_*: Gabe Resend email preview (null when none is sent)
  */
 function buildUserFacingOutput(decision, vars) {
   const reason =
     decision.reason || decision.summary || "Requires manual review.";
   const address = vars.property_address || "N/A";
   const reviewLine = `Property 1 (${address}): ${reason}`;
+  const payload = buildPayload(vars);
+  const outbound = buildOutboundEmailPreview(decision, vars, payload);
 
   if (decision.result === "PASS") {
     return {
       ...decision,
       user_facing_message: decision.summary || "Looks good",
       email_review_line: null,
+      ...outbound,
     };
   }
 
@@ -89,6 +147,7 @@ function buildUserFacingOutput(decision, vars) {
     ...decision,
     user_facing_message: reviewLine,
     email_review_line: reviewLine,
+    ...outbound,
   };
 }
 
