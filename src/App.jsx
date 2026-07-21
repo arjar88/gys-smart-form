@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FormPageLayout } from "./components/FormPageLayout";
 import { LandingView } from "./stages/LandingView";
+import { PassView } from "./stages/PassView";
 import { RejectionView } from "./stages/RejectionView";
 import { Screener } from "./stages/Screener";
 import { PrivacyPolicyView } from "./stages/PrivacyPolicyView";
@@ -13,6 +14,7 @@ const PATH_BY_STAGE = {
   screener: "/quick-review",
   form: "/full-submission",
   rejected: "/rejected",
+  passed: "/passed",
   website: "/",
   privacyPolicy: "/privacy-policy",
   termsDisclaimer: "/terms-disclaimer",
@@ -24,6 +26,7 @@ const STAGE_BY_PATH = {
   "/quick-review": "screener",
   "/full-submission": "form",
   "/rejected": "rejected",
+  "/passed": "passed",
   "/privacy-policy": "privacyPolicy",
   "/terms-disclaimer": "termsDisclaimer",
 };
@@ -32,6 +35,7 @@ const STAGE_BY_HASH = {
   "quick-review": "screener",
   "full-submission": "form",
   rejected: "rejected",
+  passed: "passed",
 };
 
 function locationToStage() {
@@ -77,7 +81,7 @@ export default function App() {
   const handlePass = useCallback(
     (screenerData) => {
       setFormData(screenerData);
-      navigateToStage("form");
+      navigateToStage("passed");
     },
     [navigateToStage]
   );
@@ -93,6 +97,10 @@ export default function App() {
   const handleTryAgain = useCallback(() => {
     setRejectionReason("");
     navigateToStage("screener");
+  }, [navigateToStage]);
+
+  const handleContinueToFullSubmission = useCallback(() => {
+    navigateToStage("form");
   }, [navigateToStage]);
 
   if (stage === "landing") {
@@ -138,6 +146,14 @@ export default function App() {
     return (
       <FormPageLayout>
         <RejectionView reason={rejectionReason} onTryAgain={handleTryAgain} />
+      </FormPageLayout>
+    );
+  }
+
+  if (stage === "passed") {
+    return (
+      <FormPageLayout>
+        <PassView onContinue={handleContinueToFullSubmission} />
       </FormPageLayout>
     );
   }

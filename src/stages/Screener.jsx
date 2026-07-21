@@ -32,7 +32,6 @@ export function Screener({ onPass, onFail, onBack }) {
   const [additionalProperties, setAdditionalProperties] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showPassModal, setShowPassModal] = useState(false);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -84,7 +83,7 @@ export function Screener({ onPass, onFail, onBack }) {
       }
 
       if (result.result === "PASS") {
-        setShowPassModal(true);
+        onPass(submitPayload);
       } else {
         onFail(
           submitPayload,
@@ -99,32 +98,7 @@ export function Screener({ onPass, onFail, onBack }) {
     }
   }
 
-  function handleContinueToFullSubmission() {
-    setShowPassModal(false);
-    onPass({ ...form, additional_properties: additionalProperties });
-  }
-
   return (
-    <>
-    {showPassModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-        <div className="w-full max-w-md rounded-2xl bg-white px-8 py-10 text-center shadow-xl">
-          <h2 className="mb-4 font-serif text-2xl font-bold text-gys-label">
-            Your file has good potential
-          </h2>
-          <p className="mb-8 text-[15px] leading-relaxed text-gys-label/80">
-            Submit the full file here to move forward with your deal.
-          </p>
-          <button
-            type="button"
-            onClick={handleContinueToFullSubmission}
-            className="w-full rounded-md bg-gys-primary px-6 py-3 text-[15px] font-medium text-white transition-colors hover:bg-gys-primary-hover"
-          >
-            Submit Full File
-          </button>
-        </div>
-      </div>
-    )}
     <FormContainer
       title="Quick Deal Review"
       onBack={onBack}
@@ -286,6 +260,5 @@ export function Screener({ onPass, onFail, onBack }) {
         </FormSection>
       </form>
     </FormContainer>
-    </>
   );
 }
