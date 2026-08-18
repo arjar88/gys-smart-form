@@ -38,6 +38,24 @@ function cloneEmailForPatch(e) {
   return out;
 }
 
+export function splitPersonName(name) {
+  const fullName = String(name || "").trim().replace(/\s+/g, " ");
+  if (!fullName) {
+    return { fullName: "", firstName: "", lastName: "" };
+  }
+
+  const parts = fullName.split(" ");
+  if (parts.length === 1) {
+    return { fullName, firstName: parts[0], lastName: "" };
+  }
+
+  return {
+    fullName,
+    firstName: parts.slice(0, -1).join(" "),
+    lastName: parts[parts.length - 1],
+  };
+}
+
 async function searchPersonByPhone(phone, apiToken) {
   const normalized = normalizePhone(phone);
   if (!normalized) return null;
@@ -115,11 +133,13 @@ function getContactTypeId(label) {
 async function createPerson(name, phone, email, orgId, contactType, apiToken) {
   const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v2/persons?api_token=${apiToken}`;
 
+  const { firstName, lastName } = splitPersonName(name);
   const normalizedPhone = normalizePhone(phone);
   const normalizedEmail = normalizeEmail(email);
 
   const body = {
-    name,
+    first_name: firstName,
+    last_name: lastName,
     phones: [{ value: normalizedPhone, primary: true }],
   };
 
@@ -136,7 +156,12 @@ async function createPerson(name, phone, email, orgId, contactType, apiToken) {
     }
   }
 
-  log.info("Creating person", { name, contactType, orgId });
+  log.info("Creating person", {
+    firstName,
+    lastName,
+    contactType,
+    orgId,
+  });
 
   const { ok, data } = await pipedriveRequest("createPerson", url, {
     method: "POST",
