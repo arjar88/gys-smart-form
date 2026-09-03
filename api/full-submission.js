@@ -17,7 +17,10 @@ import {
   lookupExistingBorrower,
   submitToPipedrive,
 } from "../server/lib/pipedrive.js";
-import { POTENTIAL_LEAD_STAGE_ID } from "../server/lib/pipedrive-deals.js";
+import {
+  MANUAL_REVIEW_STAGE_ID,
+  POTENTIAL_LEAD_STAGE_ID,
+} from "../server/lib/pipedrive-deals.js";
 import { createLogger } from "../server/lib/logger.js";
 import { FULL_SUBMISSION_SYSTEM_PROMPT } from "../server/lib/prompts/full-submission.js";
 
@@ -157,7 +160,7 @@ async function processFullSubmission(payload) {
     } else {
       log.info(
         existingBorrower
-          ? "EXISTING_BORROWER — sending to Pipedrive (Potential lead) with Gabe note"
+          ? "EXISTING_BORROWER — sending to Pipedrive (Manual Review) with Gabe note"
           : "MANUAL_REVIEW — sending to Pipedrive (Potential lead) and review email",
         {
           flagged,
@@ -170,7 +173,9 @@ async function processFullSubmission(payload) {
         }
       );
       const pipedriveResult = await submitToPipedrive(payload, {
-        stageId: POTENTIAL_LEAD_STAGE_ID,
+        stageId: existingBorrower
+          ? MANUAL_REVIEW_STAGE_ID
+          : POTENTIAL_LEAD_STAGE_ID,
         reviewBreakdown: flagged,
         ...(existingBorrower ? { existingBorrower } : {}),
       });

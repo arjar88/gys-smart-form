@@ -315,7 +315,7 @@ describe("full-submission handler", () => {
     expect(sendEmail.mock.calls[0][0].text).not.toContain("Additional Properties");
   });
 
-  it("routes a passing deal to Potential Lead when the borrower already exists", async () => {
+  it("routes a passing deal to Manual Review when the borrower already exists", async () => {
     callOpenAI.mockResolvedValue({
       result: "PASS",
       summary: "Worth a discovery call",
@@ -333,7 +333,7 @@ describe("full-submission handler", () => {
       samplePayload.borrower_email
     );
     expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload, {
-      stageId: 54,
+      stageId: 182,
       reviewBreakdown: [],
       existingBorrower: {
         personId: 202,
@@ -357,7 +357,7 @@ describe("full-submission handler", () => {
     await runHandler();
 
     expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload, {
-      stageId: 54,
+      stageId: 182,
       reviewBreakdown: [
         {
           label: "Property 1",
