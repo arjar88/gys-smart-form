@@ -13,7 +13,10 @@ import {
   buildFullPassEmail,
   pickPassTemplateId,
 } from "../server/lib/gabe-emails.js";
-import { submitToPipedrive } from "../server/lib/pipedrive.js";
+import {
+  lookupExistingBorrower,
+  submitToPipedrive,
+} from "../server/lib/pipedrive.js";
 import { POTENTIAL_LEAD_STAGE_ID } from "../server/lib/pipedrive-deals.js";
 import { createLogger } from "../server/lib/logger.js";
 import { FULL_SUBMISSION_SYSTEM_PROMPT } from "../server/lib/prompts/full-submission.js";
@@ -125,15 +128,25 @@ async function processFullSubmission(payload) {
     const breakdown = await screenAllProperties(payload);
     const flagged = breakdown.filter((property) => property.result !== "PASS");
     const allPass = flagged.length === 0;
+    const existingBorrower = await lookupExistingBorrower(
+      payload.borrower_phone,
+      payload.borrower_email
+    );
 
     log.info("AI review complete", {
       propertyCount: breakdown.length,
       allPass,
       flaggedCount: flagged.length,
+      existingBorrower: existingBorrower
+        ? {
+            personId: existingBorrower.personId,
+            matchedBy: existingBorrower.matchedBy,
+          }
+        : null,
       breakdown,
     });
 
-    if (allPass) {
+    if (allPass && !existingBorrower) {
       log.info("PASS — sending to Pipedrive and discovery-call email");
       const pipedriveResult = await submitToPipedrive(payload);
       await sendPassEmail(payload);
@@ -143,16 +156,29 @@ async function processFullSubmission(payload) {
       });
     } else {
       log.info(
-        "MANUAL_REVIEW — sending to Pipedrive (Potential lead) and review email",
-        { flagged }
+        existingBorrower
+          ? "EXISTING_BORROWER — sending to Pipedrive (Potential lead) with Gabe note"
+          : "MANUAL_REVIEW — sending to Pipedrive (Potential lead) and review email",
+        {
+          flagged,
+          existingBorrower: existingBorrower
+            ? {
+                personId: existingBorrower.personId,
+                matchedBy: existingBorrower.matchedBy,
+              }
+            : null,
+        }
       );
       const pipedriveResult = await submitToPipedrive(payload, {
         stageId: POTENTIAL_LEAD_STAGE_ID,
         reviewBreakdown: flagged,
+        ...(existingBorrower ? { existingBorrower } : {}),
       });
-      await sendWorkerReviewEmail(payload, flagged);
+      if (flagged.length > 0) {
+        await sendWorkerReviewEmail(payload, flagged);
+      }
       log.info("Background processing complete", {
-        action: "pipedrive+resend",
+        action: flagged.length > 0 ? "pipedrive+resend" : "pipedrive",
         dealId: pipedriveResult.dealId,
       });
     }

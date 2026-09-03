@@ -14,6 +14,7 @@ vi.mock("../server/lib/openai.js", async (importOriginal) => {
 
 vi.mock("../server/lib/pipedrive.js", () => ({
   submitToPipedrive: vi.fn(),
+  lookupExistingBorrower: vi.fn(),
 }));
 
 vi.mock("../server/lib/email.js", async (importOriginal) => {
@@ -27,7 +28,10 @@ vi.mock("../server/lib/email.js", async (importOriginal) => {
 import { waitUntil } from "@vercel/functions";
 import handler from "../api/full-submission.js";
 import { callOpenAI } from "../server/lib/openai.js";
-import { submitToPipedrive } from "../server/lib/pipedrive.js";
+import {
+  lookupExistingBorrower,
+  submitToPipedrive,
+} from "../server/lib/pipedrive.js";
 import { sendEmail, WORKER_EMAIL } from "../server/lib/email.js";
 import { CALENDLY_URL } from "../server/lib/gabe-emails.js";
 
@@ -84,6 +88,7 @@ async function runHandler(payload = samplePayload) {
 describe("full-submission handler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    lookupExistingBorrower.mockResolvedValue(null);
   });
 
   it("responds immediately with success", async () => {
@@ -308,5 +313,65 @@ describe("full-submission handler", () => {
     expect(sendEmail.mock.calls[0][0].text).toContain("not be enough equity");
     expect(sendEmail.mock.calls[0][0].text).toContain("Hey John and Jane,");
     expect(sendEmail.mock.calls[0][0].text).not.toContain("Additional Properties");
+  });
+
+  it("routes a passing deal to Potential Lead when the borrower already exists", async () => {
+    callOpenAI.mockResolvedValue({
+      result: "PASS",
+      summary: "Worth a discovery call",
+    });
+    lookupExistingBorrower.mockResolvedValue({
+      personId: 202,
+      matchedBy: "phone",
+    });
+    submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
+
+    await runHandler();
+
+    expect(lookupExistingBorrower).toHaveBeenCalledWith(
+      samplePayload.borrower_phone,
+      samplePayload.borrower_email
+    );
+    expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload, {
+      stageId: 54,
+      reviewBreakdown: [],
+      existingBorrower: {
+        personId: 202,
+        matchedBy: "phone",
+      },
+    });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("keeps property review email and adds existing-borrower note when both apply", async () => {
+    callOpenAI.mockResolvedValue({
+      result: "MANUAL_REVIEW",
+      reason: "Limited available equity.",
+    });
+    lookupExistingBorrower.mockResolvedValue({
+      personId: 202,
+      matchedBy: "email",
+    });
+    submitToPipedrive.mockResolvedValue({ success: true, dealId: 12345 });
+
+    await runHandler();
+
+    expect(submitToPipedrive).toHaveBeenCalledWith(samplePayload, {
+      stageId: 54,
+      reviewBreakdown: [
+        {
+          label: "Property 1",
+          address: "456 Oak Ave",
+          result: "MANUAL_REVIEW",
+          reason: "Limited available equity.",
+        },
+      ],
+      existingBorrower: {
+        personId: 202,
+        matchedBy: "email",
+      },
+    });
+    expect(sendEmail).toHaveBeenCalledOnce();
+    expect(sendEmail.mock.calls[0][0].text).toContain("not be enough equity");
   });
 });

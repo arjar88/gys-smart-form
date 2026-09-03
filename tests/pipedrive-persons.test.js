@@ -11,6 +11,7 @@ vi.mock("../server/lib/pipedrive-request.js", () => ({
 import { findOrCreateOrganization } from "../server/lib/pipedrive-organizations.js";
 import { pipedriveRequest } from "../server/lib/pipedrive-request.js";
 import {
+  findExistingPerson,
   findOrCreateBorrower,
   findOrCreateRP,
   splitPersonName,
@@ -99,5 +100,98 @@ describe("create person name fields", () => {
     expect(body.first_name).toBe("Jane Q.");
     expect(body.last_name).toBe("Public");
     expect(body.name).toBeUndefined();
+  });
+});
+
+describe("findExistingPerson", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns a phone match before searching email", async () => {
+    pipedriveRequest.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        data: {
+          items: [
+            {
+              item: {
+                id: 202,
+                organization: { id: 303 },
+                phones: ["+15551112222"],
+                emails: ["eduardo@example.com"],
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const result = await findExistingPerson(
+      "+15551112222",
+      "eduardo@example.com",
+      "test-token"
+    );
+
+    expect(result).toEqual({
+      personId: 202,
+      orgId: 303,
+      phones: ["+15551112222"],
+      emails: ["eduardo@example.com"],
+      matchedBy: "phone",
+    });
+    expect(pipedriveRequest).toHaveBeenCalledOnce();
+    expect(pipedriveRequest.mock.calls[0][0]).toBe("searchPersonByPhone");
+  });
+
+  it("falls back to email when no phone match is found", async () => {
+    pipedriveRequest
+      .mockResolvedValueOnce({ ok: true, data: { data: { items: [] } } })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          data: {
+            items: [
+              {
+                item: {
+                  id: 404,
+                  organization: null,
+                  phones: [],
+                  emails: ["eduardo@example.com"],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+    const result = await findExistingPerson(
+      "+15551112222",
+      "eduardo@example.com",
+      "test-token"
+    );
+
+    expect(result).toEqual({
+      personId: 404,
+      orgId: null,
+      phones: [],
+      emails: ["eduardo@example.com"],
+      matchedBy: "email",
+    });
+    expect(pipedriveRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns null when neither phone nor email matches", async () => {
+    pipedriveRequest
+      .mockResolvedValueOnce({ ok: true, data: { data: { items: [] } } })
+      .mockResolvedValueOnce({ ok: true, data: { data: { items: [] } } });
+
+    const result = await findExistingPerson(
+      "+15551112222",
+      "eduardo@example.com",
+      "test-token"
+    );
+
+    expect(result).toBeNull();
   });
 });

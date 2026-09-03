@@ -115,10 +115,12 @@ async function searchPersonByEmail(email, apiToken) {
   };
 }
 
-async function findExistingPerson(phone, email, apiToken) {
+export async function findExistingPerson(phone, email, apiToken) {
   const byPhone = await searchPersonByPhone(phone, apiToken);
-  if (byPhone) return byPhone;
-  return searchPersonByEmail(email, apiToken);
+  if (byPhone) return { ...byPhone, matchedBy: "phone" };
+  const byEmail = await searchPersonByEmail(email, apiToken);
+  if (byEmail) return { ...byEmail, matchedBy: "email" };
+  return null;
 }
 
 function getContactTypeId(label) {

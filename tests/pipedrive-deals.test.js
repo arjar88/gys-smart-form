@@ -186,6 +186,26 @@ describe("addDealNote", () => {
     );
   });
 
+  it("prepends an existing-borrower warning for Gabe when provided", async () => {
+    await addDealNote(
+      notePayload,
+      999,
+      "test-token",
+      [],
+      "Website Lead Submission",
+      { personId: 202, matchedBy: "phone" }
+    );
+
+    const body = JSON.parse(pipedriveRequest.mock.calls[0][2].body);
+    expect(body.content).toContain("--- EXISTING BORROWER ---");
+    expect(body.content).toContain("person ID 202");
+    expect(body.content).toContain("matched by phone");
+    expect(body.content).toContain("This is not a new borrower");
+    expect(body.content.indexOf("EXISTING BORROWER")).toBeLessThan(
+      body.content.indexOf("Borrower: John Borrower")
+    );
+  });
+
   it("uses custom note title when provided", async () => {
     await addDealNote(notePayload, 999, "test-token", [], "Quick Review Submission");
 

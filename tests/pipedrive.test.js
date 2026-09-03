@@ -4,6 +4,7 @@ vi.mock("../server/lib/pipedrive-persons.js", () => ({
   findOrCreateBorrower: vi.fn(),
   findOrCreateRP: vi.fn(),
   getPartnerDetailsById: vi.fn(),
+  findExistingPerson: vi.fn(),
 }));
 
 vi.mock("../server/lib/pipedrive-deals.js", () => ({
@@ -14,8 +15,13 @@ vi.mock("../server/lib/pipedrive-deals.js", () => ({
   setSubmissionNoteId: vi.fn(),
 }));
 
-import { submitToPipedrive, lookupPartnerDetails } from "../server/lib/pipedrive.js";
 import {
+  lookupExistingBorrower,
+  lookupPartnerDetails,
+  submitToPipedrive,
+} from "../server/lib/pipedrive.js";
+import {
+  findExistingPerson,
   findOrCreateBorrower,
   findOrCreateRP,
   getPartnerDetailsById,
@@ -94,7 +100,8 @@ describe("submitToPipedrive", () => {
       40405,
       "test-api-token",
       [],
-      undefined
+      undefined,
+      null
     );
     expect(setSubmissionNoteId).toHaveBeenCalledWith(40405, 12345, "test-api-token");
     expect(result).toEqual({ success: true, dealId: 40405 });
@@ -141,7 +148,30 @@ describe("submitToPipedrive", () => {
       40405,
       "test-api-token",
       reviewBreakdown,
-      undefined
+      undefined,
+      null
+    );
+  });
+
+  it("forwards existingBorrower to addDealNote", async () => {
+    findOrCreateRP.mockResolvedValue(101);
+    findOrCreateBorrower.mockResolvedValue({ personId: 202, orgId: 303 });
+    createDeal.mockResolvedValue(40405);
+
+    const existingBorrower = { personId: 202, matchedBy: "phone" };
+
+    await submitToPipedrive(samplePayload, {
+      stageId: 54,
+      existingBorrower,
+    });
+
+    expect(addDealNote).toHaveBeenCalledWith(
+      samplePayload,
+      40405,
+      "test-api-token",
+      [],
+      undefined,
+      existingBorrower
     );
   });
 
@@ -197,7 +227,8 @@ describe("submitToPipedrive", () => {
           reason: "Limited equity",
         },
       ],
-      "Quick Review Submission"
+      "Quick Review Submission",
+      null
     );
   });
 
@@ -205,6 +236,54 @@ describe("submitToPipedrive", () => {
     delete process.env.PIPEDRIVE_API_KEY;
 
     await expect(submitToPipedrive(samplePayload)).rejects.toThrow("PIPEDRIVE_API_KEY is not configured.");
+  });
+});
+
+describe("lookupExistingBorrower", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.PIPEDRIVE_API_KEY = "test-api-token";
+  });
+
+  it("returns the matching Pipedrive person when found", async () => {
+    findExistingPerson.mockResolvedValue({
+      personId: 202,
+      matchedBy: "phone",
+    });
+
+    const result = await lookupExistingBorrower(
+      "+15551112222",
+      "alice@example.com"
+    );
+
+    expect(findExistingPerson).toHaveBeenCalledWith(
+      "+15551112222",
+      "alice@example.com",
+      "test-api-token"
+    );
+    expect(result).toEqual({
+      personId: 202,
+      matchedBy: "phone",
+    });
+  });
+
+  it("returns null when no matching person is found", async () => {
+    findExistingPerson.mockResolvedValue(null);
+
+    const result = await lookupExistingBorrower(
+      "+15551112222",
+      "alice@example.com"
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("throws when PIPEDRIVE_API_KEY is missing", async () => {
+    delete process.env.PIPEDRIVE_API_KEY;
+
+    await expect(
+      lookupExistingBorrower("+15551112222", "alice@example.com")
+    ).rejects.toThrow("PIPEDRIVE_API_KEY is not configured.");
   });
 });
 

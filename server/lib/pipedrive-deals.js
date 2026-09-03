@@ -68,6 +68,25 @@ Zip Code: ${property.zip_code || "N/A"}`;
 ${sections.join("\n\n")}`;
 }
 
+function formatExistingBorrowerForNote(existingBorrower) {
+  if (!existingBorrower) return "";
+
+  const personId = existingBorrower.personId
+    ? `person ID ${existingBorrower.personId}`
+    : "existing Pipedrive person";
+  const matchText =
+    existingBorrower.matchedBy === "phone"
+      ? "matched by phone"
+      : existingBorrower.matchedBy === "email"
+        ? "matched by email"
+        : "matched by phone or email";
+
+  return `--- EXISTING BORROWER ---
+This borrower already exists in Pipedrive (${personId}, ${matchText}). This is not a new borrower — review their existing record before moving forward.
+
+`;
+}
+
 function formatReviewBreakdownForNote(reviewBreakdown) {
   if (!Array.isArray(reviewBreakdown) || reviewBreakdown.length === 0) {
     return "";
@@ -213,7 +232,8 @@ export async function addDealNote(
   dealId,
   apiToken,
   reviewBreakdown = [],
-  noteTitle = "Website Lead Submission"
+  noteTitle = "Website Lead Submission",
+  existingBorrower = null
 ) {
   const url = `https://${COMPANY_DOMAIN}.pipedrive.com/api/v1/notes?api_token=${apiToken}`;
 
@@ -221,7 +241,7 @@ export async function addDealNote(
     deal_id: dealId,
     content: `${noteTitle}
 
-Borrower: ${payload.borrower_name || "N/A"}
+${formatExistingBorrowerForNote(existingBorrower)}Borrower: ${payload.borrower_name || "N/A"}
 Phone: ${payload.borrower_phone || "N/A"}
 Email: ${payload.borrower_email || "N/A"}
 Company: ${payload.business_name || "N/A"}
