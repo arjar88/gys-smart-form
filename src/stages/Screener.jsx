@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { MISSING_TOKEN_MESSAGE, useBotGuard } from "../components/BotGuard";
 import { FormContainer } from "../components/FormContainer";
 import { FormField } from "../components/FormField";
 import { FormNumberField } from "../components/FormNumberField";
@@ -32,6 +33,7 @@ export function Screener({ onPass, onFail, onBack }) {
   const [additionalProperties, setAdditionalProperties] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const guard = useBotGuard({ widgetClassName: "" });
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -61,6 +63,10 @@ export function Screener({ onPass, onFail, onBack }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (guard.missingToken) {
+      setError(MISSING_TOKEN_MESSAGE);
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -73,7 +79,7 @@ export function Screener({ onPass, onFail, onBack }) {
       const response = await fetch("/api/quick-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(submitPayload),
+        body: JSON.stringify({ ...submitPayload, ...guard.fields() }),
       });
 
       const result = await response.json();
@@ -109,6 +115,7 @@ export function Screener({ onPass, onFail, onBack }) {
               {error}
             </p>
           )}
+          {guard.widget}
           <SubmitButton form="screener-form" loading={loading}>
             Check My Deal
           </SubmitButton>
@@ -121,6 +128,7 @@ export function Screener({ onPass, onFail, onBack }) {
       </p>
 
       <form id="screener-form" onSubmit={handleSubmit} className="space-y-2">
+        {guard.honeypot}
         <FormSection title="Property Details">
           <FormField
             label="Property Address"

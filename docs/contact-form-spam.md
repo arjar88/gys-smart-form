@@ -1,4 +1,4 @@
-# Contact Form Spam: What's Happening and What We Did
+# Form Spam Protection: What's Happening and What We Did
 
 ## The problem
 
@@ -35,24 +35,39 @@ Our form does **not** auto-reply to the submitter by email or SMS, so it's a poo
 
 The real cost to us is noise in the team inbox, and the risk of a real lead getting buried.
 
+## Which forms are protected
+
+All three public forms on gysmortgage.com:
+
+| Form              | Endpoint                | What a bot submission would cost us                                           |
+|-------------------|-------------------------|-------------------------------------------------------------------------------|
+| Contact us        | `/api/contact`          | An email to the team inbox                                                    |
+| Quick Deal Review | `/api/quick-review`     | OpenAI calls, a Pipedrive deal, and an email to whatever partner address was typed in |
+| File Submission   | `/api/full-submission`  | OpenAI calls, a Pipedrive deal, and emails to the partner and borrower addresses typed in |
+
+The Quick Review and File Submission forms email addresses typed into them. A bot could use them to send GYS-branded emails to strangers, which is the email-bombing pattern described above and would hurt our sending reputation. That's why every form is protected, not just Contact us.
+
 ## What we did
 
-All changes are in `api/contact.js`, `server/lib/spam-guard.js` and `src/stages/WebsiteView.jsx`.
+The shared code lives in two places:
 
-### 1. Honeypot field (always on)
+- `server/lib/spam-guard.js` (server checks)
+- `src/components/BotGuard.jsx` (honeypot field and Turnstile widget, used by all three forms)
 
-The form has a hidden `website` field that people never see. Bots fill in every field they find, so any submission with that field filled is dropped.
+### 1. Honeypot field (all forms)
 
-### 2. Timing check (always on)
+Each form has a hidden `website` field that people never see. Bots fill in every field they find, so any submission with that field filled is dropped.
 
-The form records when it was loaded. A submission is dropped if:
+### 2. Timing check (all forms)
+
+Each form records when it was loaded. A submission is dropped if:
 
 - it arrives less than 3 seconds after load (bots submit instantly), or
-- it has no start time at all (a bot posting directly to `/api/contact` without loading the page).
+- it has no start time at all (a bot posting directly to the API without loading the page).
 
-### 3. Junk-content scoring (always on)
+### 3. Junk-content scoring (Contact us only)
 
-Submissions are scored on three signals. A score of 2 or more is dropped.
+Contact submissions are scored on three signals. A score of 2 or more is dropped.
 
 | Signal                                                             | Points |
 |--------------------------------------------------------------------|--------|
@@ -62,35 +77,48 @@ Submissions are scored on three signals. A score of 2 or more is dropped.
 
 Real names like "Schwartz" or "Lynn" and normal emails like `michael.schwartz@gmail.com` pass. This is covered in `tests/contact.test.js`.
 
-### 4. Cloudflare Turnstile (off until keys are added)
+The deal forms don't use this scoring, because their fields (addresses, company names) don't fit these patterns.
 
-Turnstile is Cloudflare's free, usually invisible "are you human" check. It's already coded, but only turns on once the keys are set (see setup below).
+### 4. Cloudflare Turnstile (all forms)
+
+Turnstile is Cloudflare's free "are you human" check. It shows a small box above each form's submit button, and usually passes on its own without a click. The submit button won't send until it has passed.
 
 - It only runs after the free checks above pass, so blocked bots never cost a Cloudflare call.
-- It times out after 5 seconds and fails open if Cloudflare is down, so real leads aren't lost.
+- It times out after 5 seconds and fails open if Cloudflare is down, so real submissions aren't lost.
 
 ### How blocked submissions are handled
 
-The bot still gets a normal "success" response, so it learns nothing about what tripped the filter. No email is sent.
+Bots get a normal-looking response, so they learn nothing about what tripped the filter:
 
-Each block is logged in Vercel as `Blocked spam contact submission`, with the reason (`honeypot`, `too_fast`, `random_message`, and so on), the email and the IP.
+- **Contact us:** "success". No email is sent.
+- **Quick Deal Review:** "requires manual review". No OpenAI call, Pipedrive deal or email.
+- **File Submission:** "success". No OpenAI call, Pipedrive deal or email.
 
-## Setup still needed
+The guard fields (`website`, `startedAt`, `turnstileToken`) are stripped before anything reaches OpenAI, Pipedrive or an email.
 
-### Turn on Turnstile (recommended, about 5 minutes)
+Each block is logged in Vercel with the reason (`honeypot`, `too_fast`, `missing_start_time`, `turnstile_failed`, `random_message`, and so on) and the IP:
 
-1. Go to the Cloudflare dashboard, then **Turnstile**, then **Add widget**. A free account works, and the domain does not need to be on Cloudflare.
-2. Enter `gysmortgage.com` as the hostname and choose **Managed** mode.
-3. In Vercel, open the project, then **Settings**, then **Environment Variables**, and add:
-   - `VITE_TURNSTILE_SITE_KEY` = the site key
-   - `TURNSTILE_SECRET_KEY` = the secret key
-4. Redeploy.
+- `Blocked spam contact submission`
+- `Blocked spam quick review`
+- `Blocked spam full submission`
 
-### Rate limit the endpoint (optional)
+## Setup
 
-In Vercel, open the project, then **Firewall**, then **Rules**, and add a rate limit on path `/api/contact`, for example 3 requests per IP per 10 minutes.
+### Turnstile keys (done Oct 4, 2026)
+
+1. In Cloudflare, go to **Turnstile**, then **Add widget**. Hostnames: `gysmortgage.com` and `www.gysmortgage.com`. Mode: **Managed**.
+2. In Vercel, go to **Settings**, then **Environment Variables**:
+   - `TURNSTILE_SECRET_KEY` = the secret key, type **Secret**
+   - `VITE_TURNSTILE_SITE_KEY` = the site key, type **Config**. It's public by design.
+3. Redeploy. The site key is built into the page at build time.
+
+The widget won't run on Vercel preview URLs, because they aren't in the hostname list. Test on the live site.
+
+### Rate limit the endpoints (optional)
+
+In Vercel, go to **Firewall**, then **Rules**, and add a rate limit on `/api/contact`, `/api/quick-review` and `/api/full-submission`, for example 5 requests per IP per 10 minutes.
 
 ## Checking that it works
 
-- Vercel logs: filter for `Blocked spam contact submission` to see what is being caught and why.
-- If a real lead ever reports that the form "went through" but nobody got it, search the logs for their email and check the block reason. Adjust the threshold in `server/lib/spam-guard.js` if needed.
+- **Vercel logs:** filter for `Blocked spam` to see what is being caught and why.
+- **A real user says they submitted but nothing happened:** search the logs around that time for their IP or email, and check the block reason. Adjust the rules in `server/lib/spam-guard.js` if needed.
