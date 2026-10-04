@@ -1,5 +1,6 @@
 import { FROM_EMAIL, WORKER_EMAIL, sendEmail } from "../server/lib/email.js";
 import { createLogger } from "../server/lib/logger.js";
+import { checkSubmission, verifyTurnstile } from "../server/lib/spam-guard.js";
 
 const log = createLogger("contact");
 
@@ -47,6 +48,22 @@ export default async function handler(req, res) {
 
     if (!isValidEmail(payload.email)) {
       return res.status(400).json({ error: "Please enter a valid email address." });
+    }
+
+    const ip = String(req.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
+    const turnstile = await verifyTurnstile(req.body?.turnstileToken, ip);
+    const check = turnstile.ok
+      ? checkSubmission(req.body, payload)
+      : { spam: true, reasons: ["turnstile_failed"] };
+
+    if (check.spam) {
+      // Pretend success so bots get no signal about what tripped the filter.
+      log.warn("Blocked spam contact submission", {
+        reasons: check.reasons,
+        email: payload.email,
+        ip,
+      });
+      return res.status(200).json({ ok: true });
     }
 
     log.info("Received contact submission", {
