@@ -51,11 +51,11 @@ export async function verifyTurnstile(token, ip, { secret = process.env.TURNSTIL
   }
 }
 
-/**
- * Returns { spam: boolean, reasons: string[] }.
- * Hard fails (honeypot, timing) block on their own; content signals are scored.
- */
-export function checkSubmission(body, payload, now = Date.now()) {
+const NOT_SPAM = { spam: false, reasons: [] };
+const GUARD_FIELDS = [HONEYPOT_FIELD, "startedAt", "turnstileToken"];
+
+/** Honeypot + timing checks shared by every public form. */
+export function checkBotSignals(body, now = Date.now()) {
   if (String(body?.[HONEYPOT_FIELD] || "").trim()) {
     return { spam: true, reasons: ["honeypot"] };
   }
@@ -67,6 +67,17 @@ export function checkSubmission(body, payload, now = Date.now()) {
   if (now - startedAt < MIN_FILL_MS) {
     return { spam: true, reasons: ["too_fast"] };
   }
+
+  return NOT_SPAM;
+}
+
+/**
+ * Contact form check: bot signals plus junk-content scoring.
+ * Returns { spam: boolean, reasons: string[] }.
+ */
+export function checkSubmission(body, payload, now = Date.now()) {
+  const signals = checkBotSignals(body, now);
+  if (signals.spam) return signals;
 
   const reasons = [];
   let score = 0;
@@ -84,4 +95,27 @@ export function checkSubmission(body, payload, now = Date.now()) {
   }
 
   return { spam: score >= SPAM_SCORE_THRESHOLD, reasons };
+}
+
+export function clientIp(req) {
+  return String(req.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
+}
+
+/** Removes the guard fields so they never reach OpenAI, Pipedrive or emails. */
+export function stripGuardFields(body) {
+  const clean = { ...body };
+  for (const field of GUARD_FIELDS) delete clean[field];
+  return clean;
+}
+
+/**
+ * Full check for a request: cheap local checks first, Cloudflare only if those pass.
+ * Pass `localCheck` to replace the default honeypot + timing check (the contact form adds content scoring).
+ */
+export async function screenRequest(req, localCheck = checkBotSignals(req.body)) {
+  const ip = clientIp(req);
+  if (localCheck.spam) return { ...localCheck, ip };
+
+  const turnstile = await verifyTurnstile(req.body?.turnstileToken, ip);
+  return turnstile.ok ? { ...NOT_SPAM, ip } : { spam: true, reasons: ["turnstile_failed"], ip };
 }

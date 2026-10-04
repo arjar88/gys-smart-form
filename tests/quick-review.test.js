@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../server/lib/spam-guard.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    screenRequest: vi.fn(async () => ({ spam: false, reasons: [], ip: "" })),
+  };
+});
+
 vi.mock("@vercel/functions", () => ({
   waitUntil: vi.fn((promise) => promise),
 }));

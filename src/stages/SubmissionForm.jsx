@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { MISSING_TOKEN_MESSAGE, useBotGuard } from "../components/BotGuard";
 import { FormContainer } from "../components/FormContainer";
 import { FormField } from "../components/FormField";
 import { FormNumberField } from "../components/FormNumberField";
@@ -60,6 +61,7 @@ export function SubmissionForm({ initialData, onBack }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [partnerLookupStatus, setPartnerLookupStatus] = useState("idle");
+  const guard = useBotGuard({ widgetClassName: "" });
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -134,6 +136,10 @@ export function SubmissionForm({ initialData, onBack }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (guard.missingToken) {
+      setError(MISSING_TOKEN_MESSAGE);
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -148,6 +154,7 @@ export function SubmissionForm({ initialData, onBack }) {
       body: JSON.stringify({
         ...submission,
         additional_properties: additionalProperties,
+        ...guard.fields(),
       }),
     }).catch((err) => console.error("Submission error:", err));
   }
@@ -187,6 +194,7 @@ export function SubmissionForm({ initialData, onBack }) {
               {error}
             </p>
           )}
+          {guard.widget}
           <SubmitButton form="submission-form" loading={loading}>
             Submit
           </SubmitButton>
@@ -194,6 +202,7 @@ export function SubmissionForm({ initialData, onBack }) {
       }
     >
       <form id="submission-form" onSubmit={handleSubmit} className="space-y-2">
+        {guard.honeypot}
         <FormSection title="Referral Partner Info" largeTitle>
           <FormField
             label="Pipedrive Partner ID (Optional)"

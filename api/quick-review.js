@@ -10,6 +10,7 @@ import { buildQuickManualReviewEmail } from "../server/lib/gabe-emails.js";
 import { submitToPipedrive } from "../server/lib/pipedrive.js";
 import { MANUAL_REVIEW_STAGE_ID } from "../server/lib/pipedrive-deals.js";
 import { createLogger } from "../server/lib/logger.js";
+import { screenRequest, stripGuardFields } from "../server/lib/spam-guard.js";
 import { QUICK_REVIEW_SYSTEM_PROMPT } from "../server/lib/prompts/quick-review.js";
 
 const log = createLogger("quick-review");
@@ -74,8 +75,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    const payload =
-      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    if (typeof req.body === "string") req.body = JSON.parse(req.body);
+
+    // Block bots before any OpenAI call, Pipedrive deal or email.
+    const check = await screenRequest(req);
+    if (check.spam) {
+      log.warn("Blocked spam quick review", { reasons: check.reasons, ip: check.ip });
+      return res.status(200).json({
+        result: "MANUAL_REVIEW",
+        reason: "Your submission requires manual review.",
+      });
+    }
+
+    const payload = stripGuardFields(req.body);
 
     log.info("Request received", {
       propertyAddress: payload.property_address,

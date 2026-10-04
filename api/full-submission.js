@@ -22,6 +22,7 @@ import {
   POTENTIAL_LEAD_STAGE_ID,
 } from "../server/lib/pipedrive-deals.js";
 import { createLogger } from "../server/lib/logger.js";
+import { screenRequest, stripGuardFields } from "../server/lib/spam-guard.js";
 import { FULL_SUBMISSION_SYSTEM_PROMPT } from "../server/lib/prompts/full-submission.js";
 
 const log = createLogger("full-submission");
@@ -207,8 +208,16 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const payload =
-    typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+  if (typeof req.body === "string") req.body = JSON.parse(req.body);
+
+  // Block bots before any OpenAI call, Pipedrive deal or email.
+  const check = await screenRequest(req);
+  if (check.spam) {
+    log.warn("Blocked spam full submission", { reasons: check.reasons, ip: check.ip });
+    return res.status(200).json({ success: true });
+  }
+
+  const payload = stripGuardFields(req.body);
 
   log.info("Request received — responding immediately, processing in background", {
     propertyAddress: payload.property_address,
