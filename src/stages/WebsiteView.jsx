@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { FormPhoneInput } from "../components/FormPhoneInput";
 import { LogoMark } from "../components/LogoMark";
 import { SiteHeader } from "../components/SiteHeader";
@@ -195,6 +195,57 @@ function SectionHeading({ eyebrow, title, body, centered = false, light = false 
   );
 }
 
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+
+// Cloudflare Turnstile bot check. Renders nothing unless VITE_TURNSTILE_SITE_KEY is set.
+// The parent can call ref.current.reset() to get a fresh token after a submit.
+function TurnstileWidget({ onToken, ref }) {
+  const containerRef = useRef(null);
+  const widgetIdRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    reset() {
+      if (widgetIdRef.current !== null) window.turnstile?.reset(widgetIdRef.current);
+    },
+  }));
+
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) return undefined;
+
+    function render() {
+      if (widgetIdRef.current !== null || !window.turnstile || !containerRef.current) return;
+      widgetIdRef.current = window.turnstile.render(containerRef.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        callback: onToken,
+        "expired-callback": () => onToken(""),
+        "error-callback": () => onToken(""),
+      });
+    }
+
+    let script = document.querySelector("script[data-turnstile]");
+    if (!window.turnstile && !script) {
+      script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true;
+      script.dataset.turnstile = "true";
+      document.head.appendChild(script);
+    }
+    render();
+    script?.addEventListener("load", render);
+
+    return () => {
+      script?.removeEventListener("load", render);
+      if (widgetIdRef.current !== null) {
+        window.turnstile?.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
+      }
+    };
+  }, [onToken]);
+
+  if (!TURNSTILE_SITE_KEY) return null;
+  return <div ref={containerRef} className="mt-4" />;
+}
+
 function ContactForm() {
   const [form, setForm] = useState({
     firstName: "",
@@ -206,6 +257,15 @@ function ContactForm() {
   });
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
+  const [honeypot, setHoneypot] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef(null);
+  const startedAtRef = useRef(0);
+
+  // Record when the form first appears, so the server can reject instant bot submits.
+  useEffect(() => {
+    startedAtRef.current = Date.now();
+  }, []);
 
   function updateField(event) {
     const { name, type, checked, value } = event.target;
@@ -224,13 +284,23 @@ function ContactForm() {
       return;
     }
 
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError("Please complete the verification check.");
+      return;
+    }
+
     setStatus("submitting");
 
     try {
       const response = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          website: honeypot,
+          startedAt: startedAtRef.current,
+          turnstileToken,
+        }),
       });
 
       if (!response.ok) {
@@ -247,6 +317,9 @@ function ContactForm() {
         message: "",
         smsConsent: false,
       });
+      startedAtRef.current = Date.now();
+      setTurnstileToken("");
+      turnstileRef.current?.reset();
     } catch (err) {
       setStatus("error");
       setError(err.message);
@@ -263,6 +336,20 @@ function ContactForm() {
       className="contact-form w-full rounded-3xl bg-gys-form-tan p-5 text-gys-label sm:p-6"
     >
       <h3 className="font-serif text-2xl text-gys-navy sm:text-3xl">Contact us</h3>
+      {/* Honeypot: hidden from people, bots fill it in. */}
+      <div aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">
+        <label>
+          Website
+          <input
+            type="text"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honeypot}
+            onChange={(event) => setHoneypot(event.target.value)}
+          />
+        </label>
+      </div>
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <label className={labelClass}>
           First name *
@@ -355,6 +442,7 @@ function ContactForm() {
           for our Terms of Service.
         </p>
       </div>
+      <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
       <div className="mt-5 flex justify-end">
         <button
           type="submit"
