@@ -82,6 +82,13 @@ describe("spam-guard helpers", () => {
     expect(await verifyTurnstile("", "", { secret: "s" })).toEqual({ enabled: true, ok: false });
   });
 
+  it("fails open when Cloudflare errors or times out", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("timeout");
+    });
+    expect(await verifyTurnstile("t", "", { secret: "s", fetchImpl })).toEqual({ enabled: true, ok: true });
+  });
+
   it("passes the Cloudflare verdict through", async () => {
     const fetchImpl = vi.fn(async () => ({ json: async () => ({ success: false }) }));
     expect(await verifyTurnstile("t", "1.2.3.4", { secret: "s", fetchImpl })).toEqual({ enabled: true, ok: false });
@@ -106,6 +113,24 @@ describe("POST /api/contact", () => {
     await handler({ method: "POST", headers: {}, body: { ...botLead, ...humanTiming() } }, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({ ok: true });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("does not call Cloudflare for submissions the local checks already caught", async () => {
+    process.env.TURNSTILE_SECRET_KEY = "s";
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const res = mockRes();
+    await handler({ method: "POST", headers: {}, body: { ...botLead, ...humanTiming() } }, res);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("blocks a clean-looking lead with no Turnstile token when Turnstile is on", async () => {
+    process.env.TURNSTILE_SECRET_KEY = "s";
+    const res = mockRes();
+    await handler({ method: "POST", headers: {}, body: { ...realLead, ...humanTiming() } }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
     expect(sendEmail).not.toHaveBeenCalled();
   });
 

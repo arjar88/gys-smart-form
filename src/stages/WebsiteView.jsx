@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { FormPhoneInput } from "../components/FormPhoneInput";
 import { LogoMark } from "../components/LogoMark";
 import { SiteHeader } from "../components/SiteHeader";
@@ -198,16 +198,22 @@ function SectionHeading({ eyebrow, title, body, centered = false, light = false 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
 // Cloudflare Turnstile bot check. Renders nothing unless VITE_TURNSTILE_SITE_KEY is set.
-function TurnstileWidget({ onToken, resetKey }) {
+// The parent can call ref.current.reset() to get a fresh token after a submit.
+function TurnstileWidget({ onToken, ref }) {
   const containerRef = useRef(null);
   const widgetIdRef = useRef(null);
 
+  useImperativeHandle(ref, () => ({
+    reset() {
+      if (widgetIdRef.current !== null) window.turnstile?.reset(widgetIdRef.current);
+    },
+  }));
+
   useEffect(() => {
     if (!TURNSTILE_SITE_KEY) return undefined;
-    let cancelled = false;
 
     function render() {
-      if (cancelled || !window.turnstile || !containerRef.current) return;
+      if (widgetIdRef.current !== null || !window.turnstile || !containerRef.current) return;
       widgetIdRef.current = window.turnstile.render(containerRef.current, {
         sitekey: TURNSTILE_SITE_KEY,
         callback: onToken,
@@ -216,28 +222,25 @@ function TurnstileWidget({ onToken, resetKey }) {
       });
     }
 
-    if (window.turnstile) {
-      render();
-    } else {
-      let script = document.querySelector("script[data-turnstile]");
-      if (!script) {
-        script = document.createElement("script");
-        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-        script.async = true;
-        script.dataset.turnstile = "true";
-        document.head.appendChild(script);
-      }
-      script.addEventListener("load", render);
+    let script = document.querySelector("script[data-turnstile]");
+    if (!window.turnstile && !script) {
+      script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true;
+      script.dataset.turnstile = "true";
+      document.head.appendChild(script);
     }
+    render();
+    script?.addEventListener("load", render);
 
     return () => {
-      cancelled = true;
-      if (widgetIdRef.current !== null && window.turnstile) {
-        window.turnstile.remove(widgetIdRef.current);
+      script?.removeEventListener("load", render);
+      if (widgetIdRef.current !== null) {
+        window.turnstile?.remove(widgetIdRef.current);
         widgetIdRef.current = null;
       }
     };
-  }, [onToken, resetKey]);
+  }, [onToken]);
 
   if (!TURNSTILE_SITE_KEY) return null;
   return <div ref={containerRef} className="mt-4" />;
@@ -256,8 +259,13 @@ function ContactForm() {
   const [error, setError] = useState("");
   const [honeypot, setHoneypot] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
-  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
-  const startedAtRef = useRef(Date.now());
+  const turnstileRef = useRef(null);
+  const startedAtRef = useRef(0);
+
+  // Record when the form first appears, so the server can reject instant bot submits.
+  useEffect(() => {
+    startedAtRef.current = Date.now();
+  }, []);
 
   function updateField(event) {
     const { name, type, checked, value } = event.target;
@@ -311,7 +319,7 @@ function ContactForm() {
       });
       startedAtRef.current = Date.now();
       setTurnstileToken("");
-      setTurnstileResetKey((key) => key + 1);
+      turnstileRef.current?.reset();
     } catch (err) {
       setStatus("error");
       setError(err.message);
@@ -329,7 +337,7 @@ function ContactForm() {
     >
       <h3 className="font-serif text-2xl text-gys-navy sm:text-3xl">Contact us</h3>
       {/* Honeypot: hidden from people, bots fill it in. */}
-      <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}>
+      <div aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">
         <label>
           Website
           <input
@@ -434,7 +442,7 @@ function ContactForm() {
           for our Terms of Service.
         </p>
       </div>
-      <TurnstileWidget onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+      <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
       <div className="mt-5 flex justify-end">
         <button
           type="submit"

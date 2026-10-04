@@ -47,9 +47,8 @@ The form has a hidden `website` field that people never see. Bots fill in every 
 
 The form records when it was loaded. A submission is dropped if:
 
-- it arrives less than 3 seconds after load (bots submit instantly),
-- it has no start time at all (a bot posting directly to `/api/contact` without loading the page), or
-- the start time is more than 24 hours old.
+- it arrives less than 3 seconds after load (bots submit instantly), or
+- it has no start time at all (a bot posting directly to `/api/contact` without loading the page).
 
 ### 3. Junk-content scoring (always on)
 
@@ -65,7 +64,10 @@ Real names like "Schwartz" or "Lynn" and normal emails like `michael.schwartz@gm
 
 ### 4. Cloudflare Turnstile (off until keys are added)
 
-Turnstile is Cloudflare's free, usually invisible "are you human" check. It's already coded, but only turns on once the keys are set (see setup below). It fails open if Cloudflare itself is down, so real leads aren't lost.
+Turnstile is Cloudflare's free, usually invisible "are you human" check. It's already coded, but only turns on once the keys are set (see setup below).
+
+- It only runs after the free checks above pass, so blocked bots never cost a Cloudflare call.
+- It times out after 5 seconds and fails open if Cloudflare is down, so real leads aren't lost.
 
 ### How blocked submissions are handled
 

@@ -51,10 +51,11 @@ export default async function handler(req, res) {
     }
 
     const ip = String(req.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
-    const turnstile = await verifyTurnstile(req.body?.turnstileToken, ip);
-    const check = turnstile.ok
-      ? checkSubmission(req.body, payload)
-      : { spam: true, reasons: ["turnstile_failed"] };
+    // Free local checks first; only call Cloudflare for submissions that pass them.
+    let check = checkSubmission(req.body, payload);
+    if (!check.spam && !(await verifyTurnstile(req.body?.turnstileToken, ip)).ok) {
+      check = { spam: true, reasons: ["turnstile_failed"] };
+    }
 
     if (check.spam) {
       // Pretend success so bots get no signal about what tripped the filter.
